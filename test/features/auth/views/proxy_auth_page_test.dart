@@ -1,0 +1,531 @@
+import 'package:checks/checks.dart';
+import 'package:thoxwarroom/features/auth/views/proxy_auth_page.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('ProxyAuthDocumentFence', () {
+    test('same-origin main-frame navigation invalidates older capture', () {
+      final fence = ProxyAuthDocumentFence();
+      fence.startNavigation('https://chat.example/proxy/login');
+      final loginGeneration = fence.generation;
+
+      check(
+        fence.ownsDocument(loginGeneration, 'https://chat.example/proxy/login'),
+      ).isTrue();
+
+      fence.startNavigation('https://chat.example/oauth/callback');
+
+      check(fence.ownsGeneration(loginGeneration)).isFalse();
+      check(
+        fence.ownsDocument(loginGeneration, 'https://chat.example/proxy/login'),
+      ).isFalse();
+      check(
+        fence.ownsDocument(
+          fence.generation,
+          'https://chat.example/oauth/callback#complete',
+        ),
+      ).isTrue();
+    });
+
+    test('explicit invalidation owns no prior document', () {
+      final fence = ProxyAuthDocumentFence();
+      fence.startNavigation('https://chat.example/auth');
+      final generation = fence.generation;
+
+      fence.invalidate();
+
+      check(fence.ownsGeneration(generation)).isFalse();
+      check(
+        fence.ownsDocument(fence.generation, 'https://chat.example/auth'),
+      ).isFalse();
+    });
+  });
+
+  group('refreshProxyAuthWebView', () {
+    test(
+      'retries full initialization when cleanup left no controller',
+      () async {
+        var initializeCalls = 0;
+        var reloadCalls = 0;
+
+        await refreshProxyAuthWebView<Object>(
+          controller: null,
+          initialize: () async => initializeCalls++,
+          reload: (_) async => reloadCalls++,
+        );
+
+        check(initializeCalls).equals(1);
+        check(reloadCalls).equals(0);
+      },
+    );
+
+    test('reloads an existing controller without rebuilding it', () async {
+      final controller = Object();
+      Object? reloadedController;
+      var initializeCalls = 0;
+
+      await refreshProxyAuthWebView<Object>(
+        controller: controller,
+        initialize: () async => initializeCalls++,
+        reload: (value) async => reloadedController = value,
+      );
+
+      check(initializeCalls).equals(0);
+      check(reloadedController).identicalTo(controller);
+    });
+  });
+
+  group('isTrustedProxyCredentialCaptureUrl', () {
+    test('allows Open WebUI paths on the exact configured origin', () {
+      expect(
+        isTrustedProxyCredentialCaptureUrl(
+          pageUrl: 'https://chat.example/oauth/oidc/callback',
+          serverUrl: 'https://CHAT.example:443',
+        ),
+        isTrue,
+      );
+    });
+
+    test('rejects same-host HTTPS to HTTP downgrade', () {
+      expect(
+        isTrustedProxyCredentialCaptureUrl(
+          pageUrl: 'http://chat.example/auth',
+          serverUrl: 'https://chat.example',
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects same-host alternate port', () {
+      expect(
+        isTrustedProxyCredentialCaptureUrl(
+          pageUrl: 'https://chat.example:8443/auth',
+          serverUrl: 'https://chat.example',
+        ),
+        isFalse,
+      );
+    });
+
+    test('cookie lookup includes cookies scoped below a slashless base', () {
+      expect(
+        proxyCookieLookupUrl('https://chat.example/openwebui'),
+        'https://chat.example/openwebui/',
+      );
+    });
+  });
+
+  group('hasCapturedJwtToken', () {
+    test('returns false for missing or blank tokens', () {
+      expect(hasCapturedJwtToken(null), isFalse);
+      expect(hasCapturedJwtToken('   '), isFalse);
+    });
+
+    test('returns true for a non-empty token', () {
+      expect(hasCapturedJwtToken('header.payload.signature'), isTrue);
+    });
+  });
+
+  group('ProxyAuthCaptureQueue', () {
+    test('queues an automatic retry while a capture is in flight', () {
+      final queue = ProxyAuthCaptureQueue();
+      final request = const ProxyAuthCaptureRequest.automatic(
+        shouldWaitForJwt: false,
+        path: '/',
+      );
+
+      expect(queue.begin(request), request);
+      expect(
+        queue.begin(
+          const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: false,
+            path: '/',
+          ),
+        ),
+        isNull,
+      );
+      expect(queue.finish(completed: false), request);
+    });
+
+    test('preserves a later automatic request that requires waiting', () {
+      final queue = ProxyAuthCaptureQueue();
+
+      expect(
+        queue.begin(
+          const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: false,
+            path: '/',
+          ),
+        ),
+        isNotNull,
+      );
+      expect(
+        queue.begin(
+          const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: true,
+            path: '/auth',
+          ),
+        ),
+        isNull,
+      );
+
+      expect(
+        queue.finish(completed: false),
+        const ProxyAuthCaptureRequest.automatic(
+          shouldWaitForJwt: true,
+          path: '/auth',
+        ),
+      );
+    });
+
+    test('manual capture takes precedence over queued automatic retries', () {
+      final queue = ProxyAuthCaptureQueue();
+
+      expect(
+        queue.begin(
+          const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: false,
+            path: '/',
+          ),
+        ),
+        isNotNull,
+      );
+      expect(
+        queue.begin(
+          const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: true,
+            path: '/auth',
+          ),
+        ),
+        isNull,
+      );
+      expect(queue.begin(const ProxyAuthCaptureRequest.manual()), isNull);
+      expect(
+        queue.finish(completed: false),
+        const ProxyAuthCaptureRequest.manual(),
+      );
+    });
+
+    test('completed captures clear any queued retry', () {
+      final queue = ProxyAuthCaptureQueue();
+
+      expect(queue.begin(const ProxyAuthCaptureRequest.manual()), isNotNull);
+      expect(
+        queue.begin(
+          const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: true,
+            path: '/oauth/oidc/callback',
+          ),
+        ),
+        isNull,
+      );
+      expect(queue.finish(completed: true), isNull);
+    });
+  });
+
+  group('shouldWaitForAutomaticProxyAuthCapture', () {
+    test('waits on oauth routes', () {
+      expect(
+        shouldWaitForAutomaticProxyAuthCapture(
+          path: '/oauth/oidc/callback',
+          hasPasswordField: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('waits on auth pages without a password field', () {
+      expect(
+        shouldWaitForAutomaticProxyAuthCapture(
+          path: '/auth',
+          hasPasswordField: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('does not wait on auth pages with a password field', () {
+      expect(
+        shouldWaitForAutomaticProxyAuthCapture(
+          path: '/auth',
+          hasPasswordField: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('does not wait on normal app routes', () {
+      expect(
+        shouldWaitForAutomaticProxyAuthCapture(
+          path: '/',
+          hasPasswordField: false,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('shouldRequireJwtForAutomaticCapture', () {
+    test(
+      'returns false when no page in the session has required a JWT yet',
+      () {
+        expect(
+          shouldRequireJwtForAutomaticCapture(
+            hasPendingJwtWait: false,
+            currentPageShouldWait: false,
+          ),
+          isFalse,
+        );
+      },
+    );
+
+    test('returns true when the current page requires waiting for JWT', () {
+      expect(
+        shouldRequireJwtForAutomaticCapture(
+          hasPendingJwtWait: false,
+          currentPageShouldWait: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('stays true once a prior automatic capture required waiting', () {
+      expect(
+        shouldRequireJwtForAutomaticCapture(
+          hasPendingJwtWait: true,
+          currentPageShouldWait: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('stale document cannot publish a JWT-wait requirement', () {
+      final fence = ProxyAuthDocumentFence();
+      fence.startNavigation('https://chat.example/auth');
+      final staleGeneration = fence.generation;
+      fence.startNavigation('https://chat.example/');
+
+      final requirement = resolveProxyAuthJwtRequirement(
+        ownsDocument: fence.ownsGeneration(staleGeneration),
+        hasPendingJwtWait: false,
+        currentPageShouldWait: true,
+      );
+
+      expect(requirement, isNull);
+    });
+
+    test('current document can publish a sticky JWT-wait requirement', () {
+      final requirement = resolveProxyAuthJwtRequirement(
+        ownsDocument: true,
+        hasPendingJwtWait: false,
+        currentPageShouldWait: true,
+      );
+
+      expect(requirement, isTrue);
+    });
+  });
+
+  group('isKnownOpenWebUiProxyAuthPath', () {
+    test('returns true for OpenWebUI auth paths', () {
+      expect(isKnownOpenWebUiProxyAuthPath('/auth'), isTrue);
+      expect(isKnownOpenWebUiProxyAuthPath('/auth/oidc'), isTrue);
+      expect(isKnownOpenWebUiProxyAuthPath('/oauth/oidc/callback'), isTrue);
+      expect(isKnownOpenWebUiProxyAuthPath('/api/v1/auths/signin'), isTrue);
+    });
+
+    test('returns false for proxy login pages on the same host', () {
+      expect(isKnownOpenWebUiProxyAuthPath('/'), isFalse);
+      expect(isKnownOpenWebUiProxyAuthPath('/login'), isFalse);
+      expect(isKnownOpenWebUiProxyAuthPath('/oauth2/sign_in'), isFalse);
+    });
+  });
+
+  group('shouldAttemptAutomaticProxyAuthCapture', () {
+    test('waits on same-host pages that do not look like OpenWebUI', () {
+      expect(
+        shouldAttemptAutomaticProxyAuthCapture(
+          looksLikeOpenWebUi: false,
+          path: '/login',
+        ),
+        isFalse,
+      );
+      expect(
+        shouldAttemptAutomaticProxyAuthCapture(
+          looksLikeOpenWebUi: false,
+          path: '/',
+        ),
+        isFalse,
+      );
+    });
+
+    test('allows automatic capture for detected OpenWebUI pages', () {
+      expect(
+        shouldAttemptAutomaticProxyAuthCapture(
+          looksLikeOpenWebUi: true,
+          path: '/',
+        ),
+        isTrue,
+      );
+    });
+
+    test('allows automatic capture on known OpenWebUI auth routes', () {
+      expect(
+        shouldAttemptAutomaticProxyAuthCapture(
+          looksLikeOpenWebUi: false,
+          path: '/auth',
+        ),
+        isTrue,
+      );
+      expect(
+        shouldAttemptAutomaticProxyAuthCapture(
+          looksLikeOpenWebUi: false,
+          path: '/oauth/oidc/callback',
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('shouldCompleteProxyAuthCapture', () {
+    test('manual completion proceeds without a JWT', () {
+      expect(
+        shouldCompleteProxyAuthCapture(
+          isManual: true,
+          shouldWaitForJwt: true,
+          jwtToken: null,
+        ),
+        isTrue,
+      );
+    });
+
+    test('automatic completion waits for a JWT when required', () {
+      expect(
+        shouldCompleteProxyAuthCapture(
+          isManual: false,
+          shouldWaitForJwt: true,
+          jwtToken: null,
+        ),
+        isFalse,
+      );
+      expect(
+        shouldCompleteProxyAuthCapture(
+          isManual: false,
+          shouldWaitForJwt: true,
+          jwtToken: '   ',
+        ),
+        isFalse,
+      );
+    });
+
+    test(
+      'automatic completion proceeds without a JWT when it is not required',
+      () {
+        expect(
+          shouldCompleteProxyAuthCapture(
+            isManual: false,
+            shouldWaitForJwt: false,
+            jwtToken: null,
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test('automatic completion proceeds when a JWT exists', () {
+      expect(
+        shouldCompleteProxyAuthCapture(
+          isManual: false,
+          shouldWaitForJwt: true,
+          jwtToken: 'header.payload.signature',
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('decideProxyAuthCapture', () {
+    test('defers an older no-wait capture to a newer queued wait request', () {
+      expect(
+        decideProxyAuthCapture(
+          activeRequest: const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: false,
+            path: '/',
+          ),
+          queuedRequest: const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: true,
+            path: '/auth',
+          ),
+          jwtToken: null,
+        ),
+        ProxyAuthCaptureDecision.deferToQueuedRequest,
+      );
+    });
+
+    test('keeps waiting when the active request still requires a JWT', () {
+      expect(
+        decideProxyAuthCapture(
+          activeRequest: const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: true,
+            path: '/auth',
+          ),
+          queuedRequest: null,
+          jwtToken: null,
+        ),
+        ProxyAuthCaptureDecision.waitForJwt,
+      );
+    });
+
+    test(
+      'does not let a later no-wait request override an active wait request',
+      () {
+        expect(
+          decideProxyAuthCapture(
+            activeRequest: const ProxyAuthCaptureRequest.automatic(
+              shouldWaitForJwt: true,
+              path: '/auth',
+            ),
+            queuedRequest: const ProxyAuthCaptureRequest.automatic(
+              shouldWaitForJwt: false,
+              path: '/',
+            ),
+            jwtToken: null,
+          ),
+          ProxyAuthCaptureDecision.waitForJwt,
+        );
+      },
+    );
+
+    test(
+      'manual capture still completes even if an automatic retry is queued',
+      () {
+        expect(
+          decideProxyAuthCapture(
+            activeRequest: const ProxyAuthCaptureRequest.manual(),
+            queuedRequest: const ProxyAuthCaptureRequest.automatic(
+              shouldWaitForJwt: true,
+              path: '/auth',
+            ),
+            jwtToken: null,
+          ),
+          ProxyAuthCaptureDecision.complete,
+        );
+      },
+    );
+
+    test('completes once a JWT is present', () {
+      expect(
+        decideProxyAuthCapture(
+          activeRequest: const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: true,
+            path: '/oauth/oidc/callback',
+          ),
+          queuedRequest: const ProxyAuthCaptureRequest.automatic(
+            shouldWaitForJwt: true,
+            path: '/',
+          ),
+          jwtToken: 'header.payload.signature',
+        ),
+        ProxyAuthCaptureDecision.complete,
+      );
+    });
+  });
+}

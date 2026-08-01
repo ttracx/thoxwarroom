@@ -1,0 +1,325 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../../../core/models/socket_health.dart';
+import '../../../core/services/socket_service.dart';
+import '../../../l10n/app_localizations.dart';
+import '../../../shared/theme/theme_extensions.dart';
+import '../../../shared/widgets/thoxwarroom_components.dart';
+
+/// Widget that displays socket connection health with real-time updates.
+class SocketHealthCard extends StatefulWidget {
+  const SocketHealthCard({super.key, required this.socketService});
+
+  final SocketService socketService;
+
+  @override
+  State<SocketHealthCard> createState() => SocketHealthCardState();
+}
+
+class SocketHealthCardState extends State<SocketHealthCard> {
+  SocketHealth? _health;
+  StreamSubscription<SocketHealth>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initHealth();
+  }
+
+  void _initHealth() {
+    _health = widget.socketService.currentHealth;
+    _subscription = widget.socketService.healthStream.listen((health) {
+      if (mounted) {
+        setState(() => _health = health);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant SocketHealthCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.socketService != widget.socketService) {
+      _subscription?.cancel();
+      _initHealth();
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.thoxTheme;
+    final l10n = AppLocalizations.of(context)!;
+    final health = _health;
+
+    if (health == null) {
+      return ThoxWarRoomCard(
+        padding: const EdgeInsets.all(Spacing.md),
+        child: Row(
+          children: [
+            Icon(
+              Icons.cloud_off,
+              color: theme.iconSecondary,
+              size: IconSize.medium,
+            ),
+            const SizedBox(width: Spacing.md),
+            Text(
+              l10n.socketNotConnected,
+              style: theme.bodyMedium?.copyWith(color: theme.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final statusColor = health.isConnected ? theme.success : theme.error;
+    final qualityColor = _getQualityColor(theme, health.quality);
+
+    return ThoxWarRoomCard(
+      padding: const EdgeInsets.all(Spacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                  border: Border.all(
+                    color: statusColor.withValues(alpha: 0.2),
+                    width: BorderWidth.thin,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  health.isConnected ? Icons.cloud_done : Icons.cloud_off,
+                  color: statusColor,
+                  size: IconSize.medium,
+                ),
+              ),
+              const SizedBox(width: Spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      health.isConnected
+                          ? l10n.socketConnected
+                          : l10n.socketDisconnected,
+                      style: theme.bodyMedium?.copyWith(
+                        color: theme.sidebarForeground,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.xxs),
+                    Text(
+                      _getTransportLabel(l10n, health.transport),
+                      style: theme.bodySmall?.copyWith(
+                        color: theme.sidebarForeground.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (health.isConnected && health.hasLatencyInfo)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.sm,
+                    vertical: Spacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: qualityColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(AppBorderRadius.small),
+                    border: Border.all(
+                      color: qualityColor.withValues(alpha: 0.3),
+                      width: BorderWidth.thin,
+                    ),
+                  ),
+                  child: Text(
+                    _getQualityLabel(l10n, health.quality),
+                    style: theme.bodySmall?.copyWith(
+                      color: qualityColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (health.isConnected) ...[
+            const SizedBox(height: Spacing.md),
+            const Divider(height: 1),
+            const SizedBox(height: Spacing.md),
+            Row(
+              children: [
+                Expanded(
+                  child: MetricTile(
+                    icon: Icons.speed,
+                    label: l10n.socketLatencyLabel,
+                    value: health.hasLatencyInfo
+                        ? '${health.latencyMs}ms'
+                        : '—',
+                    color: qualityColor,
+                  ),
+                ),
+                const SizedBox(width: Spacing.md),
+                Expanded(
+                  child: MetricTile(
+                    icon: Icons.refresh,
+                    label: l10n.socketReconnectsLabel,
+                    value: '${health.reconnectCount}',
+                    color: health.reconnectCount > 0
+                        ? theme.warning
+                        : theme.success,
+                  ),
+                ),
+              ],
+            ),
+            if (health.lastHeartbeat != null) ...[
+              const SizedBox(height: Spacing.md),
+              Row(
+                children: [
+                  Icon(
+                    Icons.favorite,
+                    color: theme.error.withValues(alpha: 0.7),
+                    size: IconSize.small,
+                  ),
+                  const SizedBox(width: Spacing.xs),
+                  Text(
+                    l10n.socketLastHeartbeat(
+                      _formatLastHeartbeat(l10n, health.lastHeartbeat!),
+                    ),
+                    style: theme.bodySmall?.copyWith(
+                      color: theme.sidebarForeground.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _getTransportLabel(AppLocalizations l10n, String transport) {
+    switch (transport) {
+      case 'websocket':
+        return l10n.socketTransportWebSocket;
+      case 'polling':
+        return l10n.socketTransportPolling;
+      default:
+        return l10n.socketTransportUnknown;
+    }
+  }
+
+  String _getQualityLabel(AppLocalizations l10n, String quality) {
+    switch (quality) {
+      case 'excellent':
+        return l10n.socketQualityExcellent;
+      case 'good':
+        return l10n.socketQualityGood;
+      case 'fair':
+        return l10n.socketQualityFair;
+      case 'poor':
+        return l10n.socketQualityPoor;
+      default:
+        return '—';
+    }
+  }
+
+  Color _getQualityColor(ThoxWarRoomThemeExtension theme, String quality) {
+    switch (quality) {
+      case 'excellent':
+        return theme.success;
+      case 'good':
+        return theme.success.withValues(alpha: 0.8);
+      case 'fair':
+        return theme.warning;
+      case 'poor':
+        return theme.error;
+      default:
+        return theme.textSecondary;
+    }
+  }
+
+  String _formatLastHeartbeat(AppLocalizations l10n, DateTime lastHeartbeat) {
+    final now = DateTime.now();
+    final diff = now.difference(lastHeartbeat);
+
+    if (diff.inSeconds < 5) {
+      return l10n.timeJustNow;
+    } else if (diff.inSeconds < 60) {
+      return l10n.timeSecondsAgo(diff.inSeconds);
+    } else if (diff.inMinutes < 60) {
+      return l10n.timeMinutesAgo(diff.inMinutes);
+    } else {
+      return l10n.timeHoursAgo(diff.inHours);
+    }
+  }
+}
+
+/// A compact tile showing a single metric with icon, label, and value.
+class MetricTile extends StatelessWidget {
+  const MetricTile({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.thoxTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(Spacing.sm),
+      decoration: BoxDecoration(
+        color: theme.cardBackground.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppBorderRadius.small),
+        border: Border.all(
+          color: theme.cardBorder.withValues(alpha: 0.3),
+          width: BorderWidth.thin,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: IconSize.small),
+          const SizedBox(width: Spacing.xs),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.bodySmall?.copyWith(color: theme.textSecondary),
+                ),
+                Text(
+                  value,
+                  style: theme.bodyMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -186,6 +186,10 @@ class Routes {
   static const String channel = '/channel/:id';
   static const String workspace = '/workspace';
   static const String warroom = '/warroom';
+  static const String memories = '/memories';
+  static const String insights = '/insights';
+  static const String automations = '/automations';
+  static const String workspaceBrowser = '/workspace-browser';
 
   static String folderPath(String id) => '/folder/$id';
   static String directConnectionEditorPath(String id) =>

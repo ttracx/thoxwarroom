@@ -82,6 +82,17 @@ ThoxWarRoom applies the THOX.ai design system from the [thoxos-webby-edition](ht
 - **Status bar**: Emerald status pills, mono-font labels
 - **No external references**: No font CDN, no analytics, no icon hosts
 
+## Platforms
+
+| Platform | Build | Installer |
+| --- | --- | --- |
+| iOS 16+ | `flutter build ios --release` | .ipa (App Store / TestFlight) |
+| Android 7+ | `flutter build apk --release` | .apk / .aab (Google Play) |
+| macOS 14+ | `flutter build macos --release` | .dmg (`scripts/create_dmg.sh`) |
+| Windows 10+ | `flutter build windows --release` | .zip / .msix (`scripts/create_windows_installer.sh`) |
+
+CI builds all four platforms on every tag push (`v*`).
+
 ## Getting Started
 
 ```bash
@@ -89,7 +100,7 @@ git clone --recursive https://github.com/ttracx/thoxwarroom.git
 cd thoxwarroom
 flutter pub get
 dart run build_runner build
-flutter run -d ios   # or: flutter run -d android
+flutter run -d ios   # or: android, macos, windows
 ```
 
 See **[docs/BUILDING.md](docs/BUILDING.md)** for full build instructions.
@@ -106,19 +117,48 @@ lib/
 │   └── services/      # API, sync, notifications, etc.
 ├── features/          # Product areas
 │   ├── auth/          # Login, SSO, proxy auth
-│   ├── chat/          # Chat UI, streaming, voice mode
+│   ├── automations/   # Scheduled prompts (cron-based) ← NEW
+│   ├── chat/          # Chat UI, streaming, voice mode, context compaction ← NEW
 │   ├── channels/      # Channel threads
+│   ├── composer_shortcuts/  # @ model, / prompt, $ skill, # knowledge pickers ← NEW
 │   ├── hermes/        # Hermes Agent sessions and jobs
+│   ├── insights/      # Usage analytics dashboard ← NEW
+│   ├── memories/      # AI memories CRUD ← NEW
+│   ├── models/        # Model favorites & recents ← NEW
 │   ├── navigation/    # Sidebar, drawer, folders
 │   ├── notes/         # Note editor with audio
+│   ├── spotlight/     # Desktop floating chat bar (macOS/Windows) ← NEW
 │   ├── terminal/      # WebSocket terminal
+│   ├── warroom/       # THOX fleet/mesh/ThoxRoute dashboard
 │   ├── workspace/     # Models, knowledge, tools, skills
-│   └── warroom/       # THOX fleet/mesh/ThoxRoute dashboard ← NEW
+│   └── workspace_browser/  # Hermes file system browser ← NEW
 ├── shared/            # Reusable widgets and utilities
 │   ├── theme/         # ThoxOS theme, color tokens, typography
 │   └── widgets/       # Markdown, sheets, dialogs, loading
 └── l10n/              # 13 locale ARB files
 ```
+
+## New Features (v4.1)
+
+Features incorporated from similar apps in the ecosystem:
+
+### From Open Relay (native iOS Open WebUI client)
+- **AI Memories** — view, add, edit, and delete AI memories that persist across conversations
+- **Composer Shortcuts** — type `@` to switch model, `/` for prompts, `$` for skills, `#` for knowledge bases
+- **Automations** — schedule prompts to run automatically at recurring times with cron expressions
+
+### From Hermex (native iOS Hermes agent client)
+- **Model Favorites & Recents** — star models for quick access, auto-track recently used
+- **Usage Insights** — dashboard with prompt/token counts, daily activity chart, and model usage breakdown
+- **Workspace File Browser** — explore your Hermes server's file system with search, syntax-highlighted viewer, and CRUD operations
+
+### From Open WebUI Computer
+- **Context Compaction** — long conversations automatically summarized to stay fast, keeping system prompt and recent messages intact
+- **Workspace File Browser** — file management with search, upload, rename, delete
+
+### From Open WebUI Desktop
+- **Spotlight** — floating chat bar summoned with Shift+Cmd+I (macOS) or Shift+Ctrl+I (Windows). Type a prompt from anywhere, get instant AI responses without opening the full app
+- **Desktop Support** — native macOS and Windows builds with adaptive window sizing, persistent sidebar, and keyboard shortcuts
 
 ### THOX Technology Integration
 

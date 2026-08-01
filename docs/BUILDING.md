@@ -13,6 +13,8 @@ instead.
 | Flutter SDK | Recent stable, with Dart `3.9.2` or newer |
 | Android | Java 17, Android SDK (compile/target SDK 36), Android 7.0+ (API 24) at runtime |
 | iOS | Xcode with an iOS 16.0+ deployment target |
+| macOS | macOS 14.0+, Xcode with macOS 14.0+ SDK, CocoaPods |
+| Windows | Windows 10+, Visual Studio 2022 with C++ desktop workload, CMake 3.14+ |
 | Backend | An Open WebUI instance, an OpenAI-compatible API, an Ollama endpoint, or a Hermes server |
 
 ## Clone
@@ -45,6 +47,10 @@ dart run build_runner build
 flutter run -d ios
 # or
 flutter run -d android
+# or
+flutter run -d macos
+# or
+flutter run -d windows
 ```
 
 `dart run build_runner build` is not optional. Riverpod providers, Freezed
@@ -86,9 +92,18 @@ flutter build appbundle --release
 
 # iOS
 flutter build ios --release
+
+# macOS
+flutter build macos --release
+./scripts/create_dmg.sh
+
+# Windows
+flutter build windows --release
+./scripts/create_windows_installer.sh
 ```
 
 `scripts/release.sh` drives the tagged release flow used by the maintainer.
+CI builds all four platforms (Android APK+AAB, iOS IPA, macOS DMG, Windows ZIP+MSIX) on tag push.
 
 ## Localization
 

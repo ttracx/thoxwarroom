@@ -42,6 +42,10 @@ import '../../features/workspace/providers/workspace_capabilities_provider.dart'
 import '../../features/workspace/views/workspace_page.dart';
 import '../../features/workspace/workspace_navigation.dart';
 import '../../features/warroom/views/warroom_page.dart';
+import '../../features/memories/views/memories_page.dart';
+import '../../features/insights/views/insights_page.dart';
+import '../../features/automations/views/automations_page.dart';
+import '../../features/workspace_browser/views/workspace_browser_page.dart';
 import '../../features/direct_connections/models/direct_connection_profile.dart';
 import '../../features/direct_connections/providers/direct_connection_providers.dart';
 import '../../features/direct_connections/views/direct_connection_editor_page.dart';
@@ -492,6 +496,30 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           name: RouteNames.warroom,
           pageBuilder: (context, state) =>
               _buildNoTransitionPage(state: state, child: const WarRoomPage()),
+        ),
+        GoRoute(
+          path: Routes.memories,
+          name: 'memories',
+          pageBuilder: (context, state) =>
+              _buildNoTransitionPage(state: state, child: const MemoriesPage()),
+        ),
+        GoRoute(
+          path: Routes.insights,
+          name: 'insights',
+          pageBuilder: (context, state) =>
+              _buildNoTransitionPage(state: state, child: const InsightsPage()),
+        ),
+        GoRoute(
+          path: Routes.automations,
+          name: 'automations',
+          pageBuilder: (context, state) =>
+              _buildNoTransitionPage(state: state, child: const AutomationsPage()),
+        ),
+        GoRoute(
+          path: Routes.workspaceBrowser,
+          name: 'workspace-browser',
+          pageBuilder: (context, state) =>
+              _buildNoTransitionPage(state: state, child: const WorkspaceBrowserPage()),
         ),
       ],
     ),

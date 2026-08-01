@@ -110,7 +110,7 @@ dependencies:
   parchment: ^1.27.0
 
   # Desktop spotlight global shortcut (macOS/Windows).
-  hotkey_manager: ^2.4.0
+
   # MSIX packaging support for Windows installer creation.
   msix: ^3.16.9
 

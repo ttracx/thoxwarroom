@@ -1,6 +1,3 @@
-[submodule "openwebui-src"]
-	path = openwebui-src
-	url = https://github.com/open-webui/open-webui
 [submodule "third_party/mermaid"]
 	path = third_party/mermaid
 	url = https://github.com/orestesgaolin/mermaid.git

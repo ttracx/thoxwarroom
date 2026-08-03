@@ -1215,20 +1215,19 @@ packages:
     source: hosted
     version: "0.4.16"
   katex:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      path: "third_party/katex/packages/katex"
+      path: "third_party/_local/katex"
       relative: true
     source: path
     version: "1.0.0"
   katex_dart:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: katex_dart
-      sha256: fe692a9ae1530e02eb358e0a4b5b3e5ad5f1618dedb9a252f6571eeb6227fb1e
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.0"
+      path: "third_party/_local/katex_dart"
+      relative: true
+    source: path
+    version: "0.1.1"
   leak_tracker:
     dependency: transitive
     description:

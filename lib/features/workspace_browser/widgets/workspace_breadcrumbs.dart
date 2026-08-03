@@ -30,7 +30,7 @@ class WorkspaceBreadcrumbs extends StatelessWidget {
             child: Icon(Icons.home_outlined, size: 18, color: accent),
           ),
           for (var i = 0; i < segments.length; i++) ...[
-            Icon(Icons.chevron_right, size: 16, color: isDark ? Colors.white24 : Colors.black24),
+            Icon(Icons.chevron_right, size: 16, color: isDark ? Colors.white30 : Colors.black26),
             GestureDetector(
               onTap: () {
                 final path = '/${segments.sublist(0, i + 1).join('/')}';

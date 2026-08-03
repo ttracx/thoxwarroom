@@ -1,0 +1,6 @@
+# Local development override (gitignored, never published). The example depends
+# on the sibling `katex` package, which in turn needs `katex_dart`; resolve that
+# to the monorepo copy instead of the hosted version on pub.dev.
+dependency_overrides:
+  katex_dart:
+    path: ../../katex_dart

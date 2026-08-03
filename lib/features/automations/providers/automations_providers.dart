@@ -55,7 +55,7 @@ class AutomationsNotifier extends AsyncNotifier<List<Automation>> {
     }
   }
 
-  Future<void> update(Automation automation) async {
+  Future<void> updateAutomation(Automation automation) async {
     final dio = ref.read(_automationsDioProvider);
     try {
       final response = await dio.put(
@@ -64,7 +64,8 @@ class AutomationsNotifier extends AsyncNotifier<List<Automation>> {
       );
       final updated = Automation.fromJson(response.data as Map<String, dynamic>);
       state = AsyncData(
-        ?state.value.map((a) => a.id == updated.id ? updated : a).toList(),
+        state.value?.map((a) => a.id == updated.id ? updated : a).toList() ??
+            <Automation>[],
       );
     } on DioException catch (e) {
       DebugLogger.log('Failed to update automation: ${e.message}', scope: 'automations/update');
@@ -76,7 +77,8 @@ class AutomationsNotifier extends AsyncNotifier<List<Automation>> {
     final dio = ref.read(_automationsDioProvider);
     try {
       await dio.delete('/api/v1/automations/$id');
-      state = AsyncData(?state.value.where((a) => a.id != id).toList());
+      state = AsyncData(
+          state.value?.where((a) => a.id != id).toList() ?? <Automation>[]);
     } on DioException catch (e) {
       DebugLogger.log('Failed to delete automation: ${e.message}', scope: 'automations/delete');
       rethrow;
@@ -89,7 +91,8 @@ class AutomationsNotifier extends AsyncNotifier<List<Automation>> {
       final response = await dio.post('/api/v1/automations/$id/toggle');
       final updated = Automation.fromJson(response.data as Map<String, dynamic>);
       state = AsyncData(
-        ?state.value.map((a) => a.id == updated.id ? updated : a).toList(),
+        state.value?.map((a) => a.id == updated.id ? updated : a).toList() ??
+            <Automation>[],
       );
     } on DioException catch (e) {
       DebugLogger.log('Failed to toggle automation: ${e.message}', scope: 'automations/toggle');

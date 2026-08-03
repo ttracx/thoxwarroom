@@ -46,7 +46,7 @@ class WorkspaceFileTile extends StatelessWidget {
               ),
             ),
       trailing: entry.isDirectory
-          ? Icon(Icons.chevron_right, size: 20, color: isDark ? Colors.white24 : Colors.black24)
+          ? Icon(Icons.chevron_right, size: 20, color: isDark ? Colors.white30 : Colors.black26)
           : null,
       onTap: onTap,
       onLongPress: onLongPress,

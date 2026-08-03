@@ -69,7 +69,7 @@ class ModelFavoritesSheet extends ConsumerWidget {
                   final fav = favorites[index];
                   return ListTile(
                     key: ValueKey(fav.id),
-                    leading: Icon(Icons.drag_handle, color: isDark ? Colors.white24 : Colors.black24),
+                    leading: Icon(Icons.drag_handle, color: isDark ? Colors.white30 : Colors.black26),
                     title: Text(
                       fav.name,
                       style: TextStyle(

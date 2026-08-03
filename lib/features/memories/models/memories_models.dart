@@ -105,9 +105,9 @@ extension MemoryCategoryX on MemoryCategory {
       case MemoryCategory.preference:
         return Icons.favorite_outline;
       case MemoryCategory.instruction:
-        return Icons.rule_outline;
+        return Icons.rule;
       case MemoryCategory.context:
-        return Icons.contextual_help;
+        return Icons.help_outline;
     }
   }
 }

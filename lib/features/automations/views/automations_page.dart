@@ -113,7 +113,7 @@ class _AutomationsPageState extends ConsumerState<AutomationsPage> {
     );
     if (result == null || result is! Automation) return;
     if (existing != null) {
-      ref.read(automationsProvider.notifier).update(result);
+      ref.read(automationsProvider.notifier).updateAutomation(result);
     } else {
       ref.read(automationsProvider.notifier).create(result);
     }

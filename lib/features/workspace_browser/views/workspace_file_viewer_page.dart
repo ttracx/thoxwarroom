@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
-import 'package:flutter_highlight/themes/github-dark.dart';
+import 'package:flutter_highlight/themes/atom-one-dark.dart';
 
 import '../providers/workspace_browser_providers.dart';
 
@@ -57,7 +57,7 @@ class WorkspaceFileViewerPage extends ConsumerWidget {
                     style: TextStyle(
                       fontFamily: 'Geist Sans',
                       fontSize: 12,
-                      color: isDark ? Colors.white24 : Colors.black24,
+                      color: isDark ? Colors.white30 : Colors.black26,
                     ),
                   ),
                 ],
@@ -70,7 +70,7 @@ class WorkspaceFileViewerPage extends ConsumerWidget {
               child: HighlightView(
                 file.content,
                 language: file.language,
-                theme: githubDarkTheme,
+                theme: atomOneDarkTheme,
                 padding: const EdgeInsets.all(12),
                 textStyle: const TextStyle(
                   fontFamily: 'Geist Mono',

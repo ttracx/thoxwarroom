@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/composer_shortcut_models.dart';
@@ -69,34 +70,34 @@ class _ShortcutPickerOverlayState extends ConsumerState<ShortcutPickerOverlay> {
   }
 
   @override
-  bool handleKeyEvent(FocusNode node, KeyEvent event) {
+  KeyEventResult handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is KeyDownEvent) {
       if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
         setState(() {
           _selectedIndex = (_selectedIndex + 1) % _items.length;
         });
         _scrollToSelected();
-        return true;
+        return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
         setState(() {
           _selectedIndex = (_selectedIndex - 1) % _items.length;
         });
         _scrollToSelected();
-        return true;
+        return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.enter) {
         if (_items.isNotEmpty && _selectedIndex < _items.length) {
           widget.onSelected(_items[_selectedIndex]);
         }
-        return true;
+        return KeyEventResult.handled;
       }
       if (event.logicalKey == LogicalKeyboardKey.escape) {
         widget.onDismiss();
-        return true;
+        return KeyEventResult.handled;
       }
     }
-    return false;
+    return KeyEventResult.ignored;
   }
 
   void _scrollToSelected() {

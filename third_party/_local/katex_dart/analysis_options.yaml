@@ -1,0 +1,14 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    - "lib/**/*.g.dart"
+    - "tool/**"
+
+linter:
+  rules:
+    public_member_api_docs: false
+
+formatter:
+  trailing_commas: preserve
+  page_width: 120

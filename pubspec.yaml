@@ -121,6 +121,14 @@ dependencies:
 dependency_overrides:
   mermaid_core:
     path: third_party/mermaid/packages/mermaid_core
+  # Vendor katex + katex_dart locally (see third_party/_local/README.md):
+  # the submodule versions lack SvgPreserveAspectRatio export + require a
+  # meta constraint newer than what flutter_test pins, and the upstream
+  # submodule is read-only from this repo's POV.
+  katex:
+    path: third_party/_local/katex
+  katex_dart:
+    path: third_party/_local/katex_dart
 
 dev_dependencies:
   flutter_test:

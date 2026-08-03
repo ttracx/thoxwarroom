@@ -70,7 +70,7 @@ WarRoomStatus _buildUpdatedStatus() {
 
 List<FleetDevice> _buildFleetDevices() {
   return [
-    const FleetDevice(
+    FleetDevice(
       id: 'knighthub-wsl2',
       name: 'KnightHub WSL2',
       hostname: 'knighthub-wsl2',
@@ -88,7 +88,7 @@ List<FleetDevice> _buildFleetDevices() {
         FleetService(name: 'tailscale', status: FleetServiceStatus.running, port: 41641),
       ],
     ),
-    const FleetDevice(
+    FleetDevice(
       id: 'windows-funnel',
       name: 'Windows Funnel',
       hostname: 'windows-host',
@@ -104,7 +104,7 @@ List<FleetDevice> _buildFleetDevices() {
         FleetService(name: 'tailscale', status: FleetServiceStatus.running, port: 41641),
       ],
     ),
-    const FleetDevice(
+    FleetDevice(
       id: 'macbook-secondary',
       name: 'MacBook Secondary',
       hostname: 'macbook-pro',
@@ -121,7 +121,7 @@ List<FleetDevice> _buildFleetDevices() {
       ],
       lastSeen: DateTime.now().subtract(const Duration(minutes: 5)),
     ),
-    const FleetDevice(
+    FleetDevice(
       id: 'hf-sentinel',
       name: 'HF Sentinel',
       hostname: 'hf-cloud-failover',
@@ -194,7 +194,7 @@ List<MeshNode> _buildMeshNodes() {
 
 List<ThoxRouteModel> _buildThoxRouteModels() {
   return [
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-auto',
       name: 'thoxroute-auto',
       provider: 'THOXRoute',
@@ -204,7 +204,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       latencyMs: 240,
       description: 'Auto-routing — picks the best model for the task.',
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-chat',
       name: 'thoxroute-chat',
       provider: 'THOXRoute',
@@ -213,7 +213,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       contextWindow: 128000,
       latencyMs: 180,
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-reasoning',
       name: 'thoxroute-reasoning',
       provider: 'THOXRoute',
@@ -223,7 +223,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       latencyMs: 1200,
       description: 'Deep reasoning model with extended thinking.',
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-frontier',
       name: 'thoxroute-frontier',
       provider: 'THOXRoute',
@@ -233,7 +233,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       latencyMs: 3500,
       description: 'Frontier-scale model for complex tasks.',
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-coder',
       name: 'thoxroute-coder',
       provider: 'THOXRoute',
@@ -243,7 +243,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       latencyMs: 320,
       description: 'Code generation and review specialist.',
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-vision',
       name: 'thoxroute-vision',
       provider: 'THOXRoute',
@@ -253,7 +253,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       latencyMs: 450,
       description: 'Multimodal vision model.',
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-summarize',
       name: 'thoxroute-summarize',
       provider: 'THOXRoute',
@@ -262,7 +262,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       contextWindow: 128000,
       latencyMs: 150,
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-agentic',
       name: 'thoxroute-agentic',
       provider: 'THOXRoute',
@@ -272,7 +272,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       latencyMs: 800,
       description: 'Agent-optimized model with tool-use capabilities.',
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-team',
       name: 'thoxroute-team',
       provider: 'THOXRoute',
@@ -282,7 +282,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       latencyMs: 280,
       description: 'Multi-agent team coordination model.',
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-search',
       name: 'thoxroute-search',
       provider: 'THOXRoute',
@@ -291,7 +291,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       contextWindow: 64000,
       latencyMs: 500,
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-private',
       name: 'thoxroute-private',
       provider: 'THOXRoute',
@@ -301,7 +301,7 @@ List<ThoxRouteModel> _buildThoxRouteModels() {
       latencyMs: null,
       description: 'Private model endpoint — currently offline.',
     ),
-    const ThoxRouteModel(
+    ThoxRouteModel(
       id: 'thoxroute-company',
       name: 'thoxroute-company',
       provider: 'THOXRoute',

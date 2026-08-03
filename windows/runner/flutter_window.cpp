@@ -3,7 +3,6 @@
 #include <optional>
 
 #include "flutter/generated_plugin_registrant.h"
-#include "utils.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -14,21 +13,33 @@ bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
     return false;
   }
-  RECT frame = GetClientBounds();
-  int width = frame.right - frame.left;
-  int height = frame.bottom - frame.top;
-  // Default to 1200x800 for desktop layout.
-  if (width < 1200) {
-    width = 1200;
+
+  RECT frame = GetClientArea();
+
+  // The size here must match the window dimensions to avoid unnecessary
+  // surface creation / destruction in the startup path.
+  flutter_controller_ = std::make_unique<flutter::FlutterViewController>(
+      frame.right - frame.left, frame.bottom - frame.top, project_);
+  // Ensure that basic setup of the controller was successful.
+  if (!flutter_controller_->engine() || !flutter_controller_->view()) {
+    return false;
   }
-  if (height < 800) {
-    height = 800;
-  }
-  SetSize(width, height);
+  RegisterPlugins(flutter_controller_->engine());
+  SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  flutter_controller_->engine()->SetNextFrameCallback([&]() {
+    this->Show();
+  });
+
+  // The runner can complete the first frame before the "show window"
+  // callback is registered. ForceRedraw() ensures a frame is pending so the
+  // window is shown even if the first frame has already completed.
+  flutter_controller_->ForceRedraw();
 
   // Register Shift+Ctrl+I as a global hotkey for the Spotlight chat bar.
   // Hotkey ID 0x544F5853 = "THOX" in ASCII.
-  RegisterHotKey(GetHandle(), 0x544F5853, MOD_SHIFT | MOD_CONTROL, 0x49); // 0x49 = 'I'
+  RegisterHotKey(GetHandle(), 0x544F5853, MOD_SHIFT | MOD_CONTROL,
+                 0x49);  // 0x49 = 'I'
 
   return true;
 }
@@ -37,9 +48,10 @@ void FlutterWindow::OnDestroy() {
   // Unregister the spotlight hotkey.
   UnregisterHotKey(GetHandle(), 0x544F5853);
 
-  if (engine_) {
-    engine_->ShutDown();
+  if (flutter_controller_) {
+    flutter_controller_ = nullptr;
   }
+
   Win32Window::OnDestroy();
 }
 
@@ -47,15 +59,33 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
-  // Handle Shift+Ctrl+I global shortcut for Spotlight on Windows.
-  if (message == WM_HOTKEY && wparam == 0x544F5853) {
-    if (engine_) {
-      auto channel = flutter::MethodChannel<flutter::EncodableValue>(
-          engine_->messenger(), "ai.thox.warroom/spotlight",
-          &flutter::StandardMethodCodec::GetInstance());
-      channel.InvokeMethod("toggleSpotlight", nullptr);
+  // Give Flutter, including plugins, an opportunity to handle window
+  // messages.
+  if (flutter_controller_) {
+    std::optional<LRESULT> result = flutter_controller_
+                                        ->HandleTopLevelWindowProc(
+                                            hwnd, message, wparam, lparam);
+    if (result) {
+      return *result;
     }
-    return 0;
+  }
+
+  switch (message) {
+    case WM_FONTCHANGE:
+      flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+    case WM_HOTKEY:
+      // Shift+Ctrl+I → toggle Spotlight chat bar in Dart.
+      if (wparam == 0x544F5853 && flutter_controller_ &&
+          flutter_controller_->engine()) {
+        flutter::MethodChannel<flutter::EncodableValue> channel(
+            flutter_controller_->engine()->messenger(),
+            "ai.thox.warroom/spotlight",
+            &flutter::StandardMethodCodec::GetInstance());
+        channel.InvokeMethod("toggleSpotlight", nullptr);
+        return 0;
+      }
+      break;
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);

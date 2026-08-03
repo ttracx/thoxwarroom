@@ -75,7 +75,8 @@ class MemoriesNotifier extends AsyncNotifier<List<AiMemory>> {
       final updated =
           AiMemory.fromJson(response.data as Map<String, dynamic>);
       state = AsyncData(
-        ?state.value.map((m) => m.id == updated.id ? updated : m).toList(),
+        state.value?.map((m) => m.id == updated.id ? updated : m).toList() ??
+            <AiMemory>[],
       );
     } on DioException catch (e) {
       DebugLogger.log('Failed to update memory: ${e.message}',
@@ -90,7 +91,7 @@ class MemoriesNotifier extends AsyncNotifier<List<AiMemory>> {
       DebugLogger.log('Deleting memory $id', scope: 'memories/delete');
       await dio.delete('/api/v1/memories/$id');
       state = AsyncData(
-        ?state.value.where((m) => m.id != id).toList(),
+        state.value?.where((m) => m.id != id).toList() ?? <AiMemory>[],
       );
     } on DioException catch (e) {
       DebugLogger.log('Failed to delete memory: ${e.message}',

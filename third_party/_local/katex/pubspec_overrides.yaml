@@ -1,0 +1,7 @@
+# Local development override (gitignored, never published). Resolves the
+# katex_dart dependency to the sibling package in this monorepo instead of the
+# hosted version on pub.dev. Once katex_dart 0.1.0 is published, the hosted
+# constraint in pubspec.yaml is what consumers and `pub publish` use.
+dependency_overrides:
+  katex_dart:
+    path: ../katex_dart

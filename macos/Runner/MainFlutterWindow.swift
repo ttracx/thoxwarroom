@@ -17,7 +17,7 @@ class MainFlutterWindow: NSWindow {
     // Register a method channel for the Spotlight floating chat bar
     let spotlightChannel = FlutterMethodChannel(
       name: "ai.thox.warroom/spotlight",
-      binaryMessenger: flutterViewController.binaryMessenger
+      binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     spotlightChannel.setMethodCallHandler({ [weak self] (call, result) in
       SpotlightPanelController.shared.handleMethodCall(call, result: result)
@@ -136,7 +136,8 @@ class SpotlightPanelController: NSObject {
 
     // Create a FlutterViewController for the spotlight content
     let flutterVC = FlutterViewController(
-      engine: (NSApp.delegate as? AppDelegate)?.flutterEngine ?? FlutterEngine(name: "spotlight"),
+      engine: (NSApp.delegate as? AppDelegate)?.flutterEngine
+        ?? FlutterEngine(name: "spotlight", project: nil),
       nibName: nil,
       bundle: nil
     )

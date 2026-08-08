@@ -1,0 +1,66 @@
+name: Pull request validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  flutter:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository and submodules
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Report toolchain
+        run: flutter --version
+
+      - name: Resolve locked dependencies
+        run: flutter pub get
+
+      - name: Generate source
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Generate localizations
+        run: flutter gen-l10n
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Validate localization descriptions
+        run: dart run tool/verify_arb_descriptions.dart
+
+      - name: Validate localization parity
+        run: dart run tool/validate_arb_locales.dart
+
+      - name: Enforce canonical product display name
+        shell: bash
+        run: |
+          legacy="ThoxMini"" Air"
+          if git grep -I -n -F "$legacy" -- README.md docs lib test tool; then
+            echo "::error::Use ThoxAir for user-facing product text; preserve only machine compatibility identifiers."
+            exit 1
+          fi

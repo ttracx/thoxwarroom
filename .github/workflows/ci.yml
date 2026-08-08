@@ -27,6 +27,22 @@ jobs:
           persist-credentials: false
           submodules: true
 
+      - name: Restore vendored KaTeX generated sources
+        shell: bash
+        run: |
+          upstream=third_party/katex/packages/katex_dart
+          local=third_party/_local/katex_dart
+          count=0
+          while IFS= read -r source; do
+            relative="${source#"$upstream/"}"
+            mkdir -p "$local/$(dirname "$relative")"
+            cp "$source" "$local/$relative"
+            count=$((count + 1))
+          done < <(find "$upstream/lib" -name '*.g.dart' -type f -print)
+          test "$count" -gt 0
+          test -f "$local/lib/src/svg/glyph_paths.g.dart"
+          test -f "$local/lib/src/symbols/symbols.g.dart"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
@@ -71,6 +87,22 @@ jobs:
         with:
           persist-credentials: false
           submodules: true
+
+      - name: Restore vendored KaTeX generated sources
+        shell: bash
+        run: |
+          upstream=third_party/katex/packages/katex_dart
+          local=third_party/_local/katex_dart
+          count=0
+          while IFS= read -r source; do
+            relative="${source#"$upstream/"}"
+            mkdir -p "$local/$(dirname "$relative")"
+            cp "$source" "$local/$relative"
+            count=$((count + 1))
+          done < <(find "$upstream/lib" -name '*.g.dart' -type f -print)
+          test "$count" -gt 0
+          test -f "$local/lib/src/svg/glyph_paths.g.dart"
+          test -f "$local/lib/src/symbols/symbols.g.dart"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2

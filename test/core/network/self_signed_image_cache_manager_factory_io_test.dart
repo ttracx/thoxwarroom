@@ -49,7 +49,7 @@ void main() {
 
     expect(
       buildSelfSignedImageCacheNamespace(selfSigned),
-      'conduit-selfsigned-alpha.example.test:0',
+      'thoxwarroom-selfsigned-alpha.example.test:0',
     );
     expect(
       buildSelfSignedImageCacheNamespace(otherHost),
@@ -61,7 +61,7 @@ void main() {
     );
     expect(
       buildSelfSignedImageCacheNamespace(mutualTls),
-      'conduit-mtls-alpha.example.test:0',
+      'thoxwarroom-mtls-alpha.example.test:0',
     );
   });
 

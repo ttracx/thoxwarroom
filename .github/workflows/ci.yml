@@ -36,8 +36,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Generate code
+      - name: Generate Dart models
         run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Generate platform bindings
+        run: dart run pigeon --input pigeons/conduit_platform_apis.dart
 
       - name: Analyze
         run: flutter analyze
@@ -82,8 +85,11 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Generate code
+      - name: Generate Dart models
         run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Generate platform bindings
+        run: dart run pigeon --input pigeons/conduit_platform_apis.dart
 
       - name: Build unsigned release
         run: flutter build ${{ matrix.target }} --release

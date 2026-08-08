@@ -4,7 +4,7 @@ import FlutterMacOS
 @main
 class AppDelegate: FlutterAppDelegate {
   /// Shared Flutter engine for the Spotlight panel.
-  let flutterEngine = FlutterEngine(name: "spotlight-engine")
+  let flutterEngine = FlutterEngine(name: "spotlight-engine", project: nil)
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     // Keep the app running even when the main window closes, so the
@@ -36,13 +36,13 @@ class AppDelegate: FlutterAppDelegate {
 
   @objc func statusBarClicked(_ sender: Any) {
     SpotlightPanelController.shared.handleMethodCall(
-      FlutterMethodCall(channel: "", method: "toggleSpotlight", arguments: nil)
+      FlutterMethodCall(methodName: "toggleSpotlight", arguments: nil)
     ) { _ in }
   }
 
   @objc func openSpotlight() {
     SpotlightPanelController.shared.handleMethodCall(
-      FlutterMethodCall(channel: "", method: "showSpotlight", arguments: nil)
+      FlutterMethodCall(methodName: "showSpotlight", arguments: nil)
     ) { _ in }
   }
 

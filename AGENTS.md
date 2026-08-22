@@ -1,43 +1,49 @@
-# Project
+# ThoxWarRoom
 
-ThoxWarRoom is a native Flutter client for iOS and Android, forked from Conduit (GPL-3.0), customized for THOX.ai LLC. It connects to self-hosted Open WebUI servers, direct model endpoints (including ThoxRoute), and Hermes Agent instances — with an integrated War Room dashboard for THOX fleet, MeshStack/MeshCore, and ThoxRoute monitoring.
+Native SwiftUI wrapper for [webui.thox.ai](https://webui.thox.ai).
 
-# Build, codegen, and verification
-
-```bash
-flutter pub get
-dart run build_runner build
-flutter run -d ios
-# or
-flutter run -d android
-```
+## Build
 
 ```bash
-flutter pub get
-dart run build_runner build
-flutter test
+xcodegen generate
+./scripts/ci.sh           # local CI: regenerate, build, test
+./scripts/build_macos.sh  # signed .app + arm64 .dmg
+./scripts/build_ios.sh    # archive + TestFlight upload
 ```
 
-Run `dart run build_runner build` after `flutter pub get` and after switching branches. Generated `*.g.dart` and `*.freezed.dart` files are git-ignored but required by analyzer/test runs.
+## Conventions
 
-# Architecture & layout
+- Swift 5.10, SwiftUI, single codebase for macOS 14+ + iOS 17+
+- `WKWebView` wrapped in `NSViewRepresentable` (macOS) + `UIViewRepresentable` (iOS) — NOT the iOS 26 SwiftUI `WebView` (same libswiftWebKit pitfall as MeshStack)
+- Persistent session via `WKWebsiteDataStore.default()`
+- Off-domain navigation → system browser (cancel the in-app nav)
+- Dark-mode-first: `preferredColorScheme(.dark)` + macOS `NSApp.appearance = .darkAqua`
+- Branded overlay (spinner + error/retry) over the WKWebView — never a white screen
+- Apple Team `DVJ6Z5343U` (THOX AI LLC), bundle id `ai.thox.warroom`
+- App Sandbox + Hardened Runtime enabled on macOS
+- Code signing: Automatic
 
-Top-level Dart code is split into `lib/core/` for app-wide services, models, routing, auth, storage, networking, and platform glue; `lib/features/` for product areas; `lib/shared/` for reusable widgets and utilities; and `lib/l10n/` for localization.
+## Layout
 
-The `lib/features/warroom/` module is THOX-specific, providing fleet/mesh/ThoxRoute monitoring via a dedicated dashboard tab.
+- `App/` — Swift sources (single tree, `#if os(...)` for platform differences)
+- `Assets.xcassets/` — Xcode asset catalog (icons, accent color)
+- `Tests/` — XCTest unit tests for `ThoxWebViewModel`
+- `scripts/` — `gen_appiconset.py`, `build_macos.sh`, `build_ios.sh`, `ci.sh`, `smoke_test.sh`
+- `Resources/` — standalone `AppIcon.icns` for productbuild/DMG fallback
 
-State management uses Riverpod 3 with generated providers. Navigation uses `go_router`. HTTP and realtime transport use Dio and `socket_io_client`. Local persistence uses Drift for structured data, `shared_preferences` for preferences, and `flutter_secure_storage` for credentials.
+## Tests
 
-# Conventions
+```bash
+xcodebuild -project ThoxWarRoom.xcodeproj -scheme "ThoxWarRoom macOS" \
+    -destination "platform=macOS" CODE_SIGNING_ALLOWED=NO test
+```
 
-Use `DebugLogger` from `lib/core/utils/debug_logger.dart` for diagnostics, with slash-scoped `scope:` values. Tests use `package:checks`, `flutter_test`, and `mocktail`. Lints come from `flutter_lints` and `riverpod_lint`.
+8 tests cover the navigation policy and load state machine. No live WKWebView in unit tests.
 
-# Design System
+## Lessons learned (carry over from MeshStack)
 
-ThoxWarRoom uses the ThoxOS design system (emerald accent, dark-first). See `lib/shared/theme/tweakcn_themes.dart` for the `thoxos` theme variant. All new UI must follow the ThoxOS design tokens.
-
-# THOX Technology Integration
-
-- **ThoxRoute**: route.thox.ai/v1 — 12 workspace model categories
-- **MeshStack/MeshCore**: COBS+CBOR+CRC32C protocol at 921600 baud
-- **Fleet**: KnightHub WSL2 (primary), Windows (funnel), MacBook (secondary), HF Sentinel (failover)
+- Don't use the iOS 26 SwiftUI `WebView`; it's iOS 26+ only and the libswiftWebKit linkage is fragile across Xcode minor versions.
+- Don't trust `xcpretty` availability — pipe to `tee log >/dev/null` and tail the log instead.
+- Watch out for `NSApp.appearance = ...` inside `App.init()` — `NSApp.shared` is nil until after init. Defer via `applicationDidFinishLaunching` notification.
+- `osascript` requires Accessibility permission on macOS 26 (Tahoe); `cua-driver` works without it.
+- Screen Recording permission is needed for `screencapture`; cua-driver's AX capture is the more reliable smoke-test signal.

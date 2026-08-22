@@ -1,197 +1,157 @@
-<h1 align="center">ThoxWarRoom</h1>
+# ThoxWarRoom
 
-<p align="center">
-  <strong>THOX.ai LLC — War Room mobile command center for ThoxOS, MeshStack, and Hermes Agent operations.</strong>
-</p>
+> Native SwiftUI wrapper for [webui.thox.ai](https://webui.thox.ai). One codebase, two targets: macOS 14+ (Apple Silicon) and iOS 17+ (iPhone). Built for THOX AI LLC.
 
-<p align="center">
-  <a href="https://github.com/ttracx/thoxwarroom">
-    <img alt="Repository" src="https://img.shields.io/badge/repository-ttracx/thoxwarroom-0B1220" />
-  </a>
-  <img alt="THOX.ai LLC" src="https://img.shields.io/badge/owner-THOX.ai%20LLC-00A676" />
-  <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-22c55e" />
-  <img alt="CTO" src="https://img.shields.io/badge/CTO-Tommy%20Xaypanya-1F6FEB" />
-  <img alt="CEO" src="https://img.shields.io/badge/CEO-Craig%20Ross-6F42C1" />
-</p>
+ThoxWarRoom is a thin, branded shell that loads the THOX Open WebUI in a persistent `WKWebView`. Sign in once; the cookie store keeps you signed in across launches. Off-domain links open in the system browser instead of navigating away. Dark-mode-first, THOX emerald chip-mark icon, native macOS titlebar and iOS navigation chrome.
 
-<p align="center">
-  <a href="#features">Features</a> ·
-  <a href="#thoxos-design-system">Design System</a> ·
-  <a href="#war-room-dashboard">War Room</a> ·
-  <a href="#getting-started">Getting Started</a> ·
-  <a href="#architecture">Architecture</a> ·
-  <a href="#privacy">Privacy</a> ·
-  <a href="docs/BUILDING.md">Build from Source</a>
-</p>
+## Targets
 
-<br>
+| Target | Platform | Min OS | UI framework | Web framework |
+|---|---|---|---|---|
+| `ThoxWarRoom macOS` | macOS 14+ | Apple Silicon | SwiftUI | `WKWebView` via `NSViewRepresentable` |
+| `ThoxWarRoom iOS`   | iOS 17+   | iPhone       | SwiftUI | `WKWebView` via `UIViewRepresentable` |
 
-ThoxWarRoom is a native Flutter mobile client forked from [Conduit](https://github.com/cogwheel0/conduit) (GPL-3.0), customized and extended for THOX.ai LLC operations. It connects to Open WebUI servers, direct model endpoints, and Hermes Agent instances — with integrated THOX technology monitoring:
+Both targets share the same Swift sources in `App/` — platform-conditional via `#if os(macOS)` / `#if os(iOS)`. The bundle identifier is `ai.thox.warroom` for both. Apple Developer Team: `DVJ6Z5343U` (THOX AI LLC).
 
-- **ThoxRoute** — Model routing infrastructure (route.thox.ai/v1) with 12 workspace model categories
-- **MeshStack / MeshCore** — Real-time mesh network node monitoring (COBS+CBOR+CRC32C protocol)
-- **Fleet Monitoring** — THOX device fleet health (KnightHub WSL2, Windows Funnel, MacBook, HF Sentinel)
-- **ThoxOS Design System** — Dark-first, emerald accent (#10B981), Chakra Petch typography
+## Project layout
 
-## Features
+```
+thoxwarroom/
+├── project.yml                 # XcodeGen — single source of truth for the Xcode project
+├── App/
+│   ├── ThoxWarRoomApp.swift    # @main App, scene wiring, dark appearance
+│   ├── ContentView.swift       # Root view: WKWebView + branded overlay
+│   ├── WebViewRepresentable.swift  # macOS NSViewRepresentable + iOS UIViewRepresentable
+│   ├── ThoxWebViewModel.swift  # ObservableObject: load state, navigation policy
+│   ├── ThoxTheme.swift         # THOX emerald accent + dark surfaces
+│   ├── LoadingOverlay.swift    # Branded spinner + offline/Retry
+│   └── ThoxWarRoom.entitlements # App sandbox + network client
+├── Assets.xcassets/            # Xcode asset catalog (icons + accent color)
+│   ├── AppIcon.appiconset/     # iOS universal icons
+│   └── AppIcon-mac.appiconset/ # macOS icons
+├── Resources/                  # Standalone AppIcon.icns (for productbuild/DMG fallback)
+│   ├── AppIcon-master.png      # 1024x1024 master
+│   ├── AppIcon.icns
+│   └── AppIcon.appiconset/     # Loose iOS iconset (mirrored into Assets.xcassets)
+├── Tests/
+│   └── ThoxWarRoomTests.swift  # Navigation policy + load state machine tests
+├── scripts/
+│   ├── gen_appiconset.py       # Regenerate THOX-green chip-mark icons
+│   ├── build_macos.sh          # Signed .app + arm64 .dmg on /Volumes/VibeStore/build
+│   ├── build_ios.sh            # Archive + TestFlight upload
+│   ├── ci.sh                   # Local CI (no GitHub Actions)
+│   └── smoke_test.sh           # E2E launch + persistent login check
+├── .env.example                # APPLE_ID / APPLE_PASSWORD placeholders
+├── AGENTS.md                   # Project conventions for AI workers
+└── README.md
+```
 
-### Chat that survives mobile
-
-Token-by-token streaming over WebSocket. Full conversation history, folders, search, pinning, temporary chats. Syntax-highlighted code blocks, Mermaid diagrams, LaTeX, reasoning sections, inline citations, and Chart.js embeds — all native Flutter.
-
-### Three ways to connect
-
-| | | |
-| --- | --- | --- |
-| **Open WebUI** | Your self-hosted server | Full feature set: chats, folders, notes, channels, workspace, tools, web search, image generation |
-| **Direct** | OpenAI-compatible, Ollama, OpenRouter, ThoxRoute | Talk straight to a provider or model. No Open WebUI account required |
-| **Hermes** | Your self-hosted agent | Agent tools, approval flow, scheduled jobs |
-
-### War Room Dashboard
-
-A dedicated tab providing real-time command-center visibility into THOX infrastructure:
-
-- **Fleet tab** — Device status (online/degraded/offline), CPU/memory/disk usage bars, service health per device, container IDs and versions
-- **Mesh tab** — MeshCore node connectivity, baud rate (921600), COBS+CBOR+CRC32C protocol stats, packet counts and CRC error tracking
-- **ThoxRoute tab** — All 12 route models (auto, chat, reasoning, frontier, coder, vision, summarize, private, company, search, agentic, team) with context window, latency, and availability status
-- **Alerts tab** — Severity-tiered alerts (critical/warning/info) with source attribution and timestamps
-
-### Everything else
-
-| Area | What's included |
-| --- | --- |
-| Files and media | Uploads, multimodal prompts, clipboard image paste, audio attachments |
-| Notes | Autosave, pinning, AI titles, audio recording, offline |
-| Channels | Threads and reactions |
-| Voice | Voice input + full voice-call mode |
-| Home screen | Widgets on iOS and Android, quick actions, App Intents |
-| Sharing | Share-sheet ingestion |
-| Terminal | Interactive WebSocket sessions |
-| Personalization | Light, dark, and system themes; ThoxOS emerald accent palette; adaptive Material and Cupertino UI |
-| Languages | 13 locales |
-
-## ThoxOS Design System
-
-ThoxWarRoom applies the THOX.ai design system from the [thoxos-webby-edition](https://github.com/ttracx/thoxos-webby-edition) reference repo:
-
-- **Dark-first**: True black (#000000) root, gray-900 (#0B0B0C) surfaces
-- **One accent**: Emerald-500 (#10B981) for focus, selection, active states, buttons
-- **Typography**: Geist Sans (body), Geist Mono (metrics/values), with Chakra Petch available for display headings
-- **Radius**: Controls 12px (rounded-lg), containers 16px (rounded-xl)
-- **Borders**: Hairline — border-white/10 in dark, border-gray-200 in light
-- **Status bar**: Emerald status pills, mono-font labels
-- **No external references**: No font CDN, no analytics, no icon hosts
-
-## Platforms
-
-| Platform | Build | Installer |
-| --- | --- | --- |
-| iOS 16+ | `flutter build ios --release` | .ipa (App Store / TestFlight) |
-| Android 7+ | `flutter build apk --release` | .apk / .aab (Google Play) |
-| macOS 14+ | `flutter build macos --release` | .dmg (`scripts/create_dmg.sh`) |
-| Windows 10+ | `flutter build windows --release` | .zip / .msix (`scripts/create_windows_installer.sh`) |
-
-CI builds all four platforms on every tag push (`v*`).
-
-## Getting Started
+## Build & run
 
 ```bash
-git clone --recursive https://github.com/ttracx/thoxwarroom.git
-cd thoxwarroom
-flutter pub get
-dart run build_runner build
-flutter run -d ios   # or: android, macos, windows
+# 1) Generate the Xcode project from project.yml
+xcodegen generate
+
+# 2) Build + test
+./scripts/ci.sh
+
+# 3) Build the macOS app + a distributable arm64 .dmg
+./scripts/build_macos.sh
+# Output: build/macos/ThoxWarRoom-Release-arm64.dmg
+
+# 4) Build the iOS app + upload to TestFlight
+APPLE_ID=you@apple.com APPLE_PASSWORD=app-specific-pw \
+    ./scripts/build_ios.sh
+# Output: build/ios/export/ThoxWarRoom.ipa
 ```
 
-See **[docs/BUILDING.md](docs/BUILDING.md)** for full build instructions.
+### Launch the macOS app
 
-## Architecture
-
-```
-lib/
-├── core/              # App-wide services, models, routing, auth, storage
-│   ├── auth/          # Open WebUI, Direct, and Hermes auth flows
-│   ├── database/      # Drift database, DAOs, FTS
-│   ├── network/       # HTTP, WebSocket, image caching
-│   ├── router/        # GoRouter configuration
-│   └── services/      # API, sync, notifications, etc.
-├── features/          # Product areas
-│   ├── auth/          # Login, SSO, proxy auth
-│   ├── automations/   # Scheduled prompts (cron-based) ← NEW
-│   ├── chat/          # Chat UI, streaming, voice mode, context compaction ← NEW
-│   ├── channels/      # Channel threads
-│   ├── composer_shortcuts/  # @ model, / prompt, $ skill, # knowledge pickers ← NEW
-│   ├── hermes/        # Hermes Agent sessions and jobs
-│   ├── insights/      # Usage analytics dashboard ← NEW
-│   ├── memories/      # AI memories CRUD ← NEW
-│   ├── models/        # Model favorites & recents ← NEW
-│   ├── navigation/    # Sidebar, drawer, folders
-│   ├── notes/         # Note editor with audio
-│   ├── spotlight/     # Desktop floating chat bar (macOS/Windows) ← NEW
-│   ├── terminal/      # WebSocket terminal
-│   ├── warroom/       # THOX fleet/mesh/ThoxRoute dashboard
-│   ├── workspace/     # Models, knowledge, tools, skills
-│   └── workspace_browser/  # Hermes file system browser ← NEW
-├── shared/            # Reusable widgets and utilities
-│   ├── theme/         # ThoxOS theme, color tokens, typography
-│   └── widgets/       # Markdown, sheets, dialogs, loading
-└── l10n/              # 13 locale ARB files
+```bash
+open build/macos/derived/Build/Products/Release/ThoxWarRoom.app
 ```
 
-## New Features (v4.1)
+The window loads `https://webui.thox.ai` and persists the session cookie via `WKWebsiteDataStore.default()` so the next launch stays signed in.
 
-Features incorporated from similar apps in the ecosystem:
+## Behavior
 
-### From Open Relay (native iOS Open WebUI client)
-- **AI Memories** — view, add, edit, and delete AI memories that persist across conversations
-- **Composer Shortcuts** — type `@` to switch model, `/` for prompts, `$` for skills, `#` for knowledge bases
-- **Automations** — schedule prompts to run automatically at recurring times with cron expressions
+- **Persistent session** — `WKWebViewConfiguration.websiteDataStore = .default()`. Login cookies survive quit/relaunch.
+- **In-app policy** — `decidePolicyFor navigationAction`: if `host == webui.thox.ai` keep it in the WKWebView; otherwise open in the system browser (`NSWorkspace` on macOS, `UIApplication.open` on iOS) and cancel the in-app navigation.
+- **Off-domain target=_blank** — `webView(_:createWebViewWith:for:windowFeatures:)` opens in the system browser instead of spawning a new window.
+- **Loading state** — branded overlay (THOX emerald spinner + "Loading webui.thox.ai…") until `didFinish` fires.
+- **Error state** — branded card with wifi-exclamation icon, error message, and a Retry button. Never a white screen — `didFail` / `didFailProvisionalNavigation` always route to the overlay.
+- **Dark-mode-first** — `preferredColorScheme(.dark)` on both platforms + macOS `NSApp.appearance = .darkAqua` set on `applicationDidFinishLaunching`.
 
-### From Hermex (native iOS Hermes agent client)
-- **Model Favorites & Recents** — star models for quick access, auto-track recently used
-- **Usage Insights** — dashboard with prompt/token counts, daily activity chart, and model usage breakdown
-- **Workspace File Browser** — explore your Hermes server's file system with search, syntax-highlighted viewer, and CRUD operations
+## Signing & distribution
 
-### From Open WebUI Computer
-- **Context Compaction** — long conversations automatically summarized to stay fast, keeping system prompt and recent messages intact
-- **Workspace File Browser** — file management with search, upload, rename, delete
+### macOS
 
-### From Open WebUI Desktop
-- **Spotlight** — floating chat bar summoned with Shift+Cmd+I (macOS) or Shift+Ctrl+I (Windows). Type a prompt from anywhere, get instant AI responses without opening the full app
-- **Desktop Support** — native macOS and Windows builds with adaptive window sizing, persistent sidebar, and keyboard shortcuts
+- Team: `DVJ6Z5343U` (THOX AI LLC)
+- Code signing: Automatic (`CODE_SIGN_STYLE=Automatic`)
+- App Sandbox: enabled (`com.apple.security.app-sandbox=true`)
+- Hardened runtime: enabled
+- Network client: enabled (`com.apple.security.network.client=true`)
+- Notarization: skipped by default; `scripts/build_macos.sh` auto-notarizes when `APPLE_ID` + `APPLE_PASSWORD` are present.
+- Output DMG: `build/macos/ThoxWarRoom-Release-arm64.dmg`
 
-### THOX Technology Integration
+### iOS
 
-The `lib/features/warroom/` module adds THOX-specific infrastructure monitoring:
+- Team: `DVJ6Z5343U` (THOX AI LLC)
+- Code signing: Automatic, allows provisioning updates (`-allowProvisioningUpdates`)
+- Bundle id: `ai.thox.warroom` (iPhone only, `TARGETED_DEVICE_FAMILY=1`)
+- Minimum OS: iOS 17
+- Upload: `xcrun altool --upload-app --type ios` (App Store Connect API key preferred, see `.env.example`)
+- API key: `TKYHH5J4C3` / Issuer `c97d7004-992d-49d4-b2a2-bcab1e090187`
 
-- **models/warroom_models.dart** — Data models for FleetDevice, MeshNode, ThoxRouteModel, WarRoomAlert
-- **providers/warroom_providers.dart** — Riverpod providers with 30-second refresh cycle
-- **views/warroom_page.dart** — Tabbed dashboard (Fleet / Mesh / ThoxRoute / Alerts) with ThoxOS styling
+## Tests
 
-In production, the providers poll:
-- Fleet: `http://<device>:8080/health` on each THOX device
-- Mesh: `serial://` or `tcp://<mesh-hub>:9216` for MeshCore stats
-- ThoxRoute: `https://route.thox.ai/v1/models` for model availability
+```bash
+xcodebuild \
+    -project ThoxWarRoom.xcodeproj \
+    -scheme "ThoxWarRoom macOS" \
+    -destination "platform=macOS" \
+    CODE_SIGNING_ALLOWED=NO \
+    test
+```
 
-## Privacy
+8 unit tests cover:
 
-- Chats, notes, and drafts are stored on-device. Notes stay available offline.
-- Credentials use platform secure storage (Keychain/Keystore).
-- No third-party analytics or advertising SDKs.
-- No developer-operated backend relays data. Traffic goes from device to your configured server only.
+- Base URL is `https://webui.thox.ai`
+- Off-domain hosts (`github.com`, `accounts.google.com`, `example.com`) → external
+- `webui.thox.ai` and subpaths → in-app
+- Initial state is `.idle`
+- `didStart` / `didFinish` / `didFail` transitions
+- Sticky error state (subsequent `didFinish` doesn't clobber a `.error`)
+- Reload lifecycle (`isReloadPending` flips and acknowledges)
+- `resetForRetry` arms a reload and lands in `.loading`
 
-## Acknowledgements
+## Design system
 
-ThoxWarRoom is forked from [Conduit](https://github.com/cogwheel0/conduit) by cogwheel0, licensed under GPL-3.0. We gratefully acknowledge the original work and the Open WebUI community.
+| Token | Value | Use |
+|---|---|---|
+| `ThoxTheme.accent` | `#05A451` | THOX emerald — primary action, spinner, brand mark |
+| `ThoxTheme.background` | `#0C0E12` | App backdrop (matches OpenWebUI dark) |
+| `ThoxTheme.surface` | `#161A20` | Card / overlay surface |
+| `ThoxTheme.separator` | `white @ 8%` | Hairline borders |
+| `ThoxTheme.primaryText` | `white` | Body |
+| `ThoxTheme.secondaryText` | `#A6A6A6` | Captions / error detail |
 
-## Legal
+The app icon is a THOX emerald rounded square with a stylized "chip" mark (3 dark horizontal slabs forming a T silhouette). `scripts/gen_appiconset.py` regenerates the full icon set from a single 1024×1024 master using Pillow + `iconutil`.
 
-Copyright (c) 2024-2026 THOX.ai LLC. All rights reserved.
+## CI
 
-**THOX.ai LLC**
-- CTO: Tommy Xaypanya
-- CEO: Craig Ross
+`scripts/ci.sh` runs locally (no remote runners):
 
-ThoxWarRoom is licensed under the [GPL-3.0 License](LICENSE), inherited from the upstream Conduit project.
+1. Verify toolchain (`xcodebuild`, `xcrun`, `xcodegen`, `python3`, `iconutil`)
+2. `xcodegen generate`
+3. `python3 scripts/gen_appiconset.py`
+4. Build for testing
+5. Run macOS unit tests
+6. Signed macOS build + DMG
+7. iOS archive + TestFlight upload
 
-Unauthorized copying, modification, merger, publication, distribution, sublicensing, and/or selling of this software, via any medium, is strictly prohibited without prior written consent from THOX.ai LLC, except as permitted by the GPL-3.0 license terms.
+Override via env vars: `SKIP_IOS_BUILD=1`, `SKIP_MACOS_BUILD=1`, `SKIP_NOTARIZE=1`, `SKIP_UPLOAD=1`.
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

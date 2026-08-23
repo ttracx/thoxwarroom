@@ -94,14 +94,16 @@ final class NetworkTerminalStateCoordinatorTests: XCTestCase {
             let responseWaiter = Task { try await coordinator.awaitResponse() }
             await Task.yield()
 
-            DispatchQueue.concurrentPerform(iterations: 12) { index in
-                switch index % 4 {
+            DispatchQueue.concurrentPerform(iterations: 15) { index in
+                switch index % 5 {
                 case 0:
                     coordinator.cancel()
                 case 1:
                     coordinator.timeout()
                 case 2:
                     coordinator.fail(.connection(.networkUnavailable))
+                case 3:
+                    coordinator.receive(Data([UInt8(index)]))
                 default:
                     coordinator.fail(.protocolFailure(.unexpectedEndOfStream))
                 }

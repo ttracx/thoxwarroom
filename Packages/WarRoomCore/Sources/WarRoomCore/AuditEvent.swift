@@ -11,6 +11,7 @@ public struct AuditEventID: RawRepresentable, Hashable, Codable, Sendable {
 
 /// Outcome of an auditable action.
 public enum AuditOutcome: String, Codable, Sendable {
+    case requested
     case succeeded
     case denied
     case failed

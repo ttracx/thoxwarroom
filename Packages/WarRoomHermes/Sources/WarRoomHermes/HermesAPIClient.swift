@@ -113,7 +113,8 @@ public struct HermesAPIClient: Sendable {
         return events
     }
 
-    public func approve(
+    /// Raw mutation primitive available only to the audited coordinator in this module.
+    func approve(
         runID: HermesRunID,
         request: HermesApprovalRequest
     ) async throws -> HermesApprovalResponse {
@@ -134,7 +135,8 @@ public struct HermesAPIClient: Sendable {
         return decoded
     }
 
-    public func stop(
+    /// Raw mutation primitive available only to the audited coordinator in this module.
+    func stop(
         runID: HermesRunID,
         request: HermesStopRequest = HermesStopRequest()
     ) async throws -> HermesStopResponse {

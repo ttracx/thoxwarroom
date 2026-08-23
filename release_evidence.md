@@ -1,5 +1,17 @@
 # Release Evidence
 
+## 2026-08-23 hardened iOS and macOS TestFlight build 3 delivery
+
+- Application source: pushed `main` at `0ce9cd1d27ba3c69b2be6fbfdac15abd221778fd` before both signed builds. The worktree and `origin/main` matched that SHA.
+- Included source hardening: fail-closed Hermes human mutation review (`ed85d25`), strict offline OpenWebUI contract evidence qualification (`2471338`), and encrypted durable operation replay/reconciliation with Keychain-committed rollback/deletion detection (`c7e0d66`). Production mutation transport and native chat remain disabled pending verified live contracts.
+- Integrated release gate: 193/193 standalone Swift package tests, 80/80 integrated macOS app tests, and 7/7 Python release/security tests passed; deterministic XcodeGen/assets/privacy checks and the generic iOS Simulator test build also passed. A stale SwiftPM runner/toolchain link was eliminated by regenerating XCTest-only package runners. Local LaunchServices registration hung during macOS test/archive finalization; terminating only that helper caused Xcode to record registration as skipped and complete successfully.
+- iOS archive/export/upload: `build/ios-0ce9cd1/ThoxWarRoom.xcarchive` and `build/ios-0ce9cd1/export/ThoxWarRoom.ipa`; IPA SHA-256 `7e5890eeb7e559e7b102eaa7537aadc58dce84d8739375b41c1c53a7b140780c`; delivery/build ID `59641301-6e5c-4f15-aa5f-d4456a0c7f60`.
+- Native macOS App Store archive/export/upload: `build/macos-appstore-0ce9cd1/ThoxWarRoom.xcarchive` and `build/macos-appstore-0ce9cd1/export/ThoxWarRoom.pkg`; package SHA-256 `211414161be93b9cad50d79fe6f39c760f63ae524cbf29bd0780102866d32ce4`; delivery/build ID `db0ba014-ba86-495e-b816-7e7104b34deb`. The first transfer entered a repeated server checksum-retry loop and was terminated; a clean retry of the exact same verified package succeeded.
+- Both lanes generated the same revision-bound SPDX document, SHA-256 `309dbdf2d548d68aaac243f76665a5adf47a06e09dcc41ce0f2811f1faef6c32`.
+- Both version 4.2.0 build 3 records reached Apple `VALID`, `IN_BETA_TESTING`, and external `READY_FOR_BETA_SUBMISSION`. The source Info.plists contained `ITSAppUsesNonExemptEncryption=false`; no manual export-compliance repair was required.
+- Both build 3 IDs were assigned to `THOX AI LLC Internal` (`312308e3-a3d6-4dbf-bc08-c7c1be6081e5`). App Store Connect returned all four build 2/3 platform records in that group. Tommy Xaypanya (`tommy@thox.ai`) remains the single tester with state `INVITED`.
+- Remaining evidence gates: invitation acceptance and physical iPhone/Mac TestFlight install/launch are not observed. Native authenticated chat lacks all nine sanctioned contract captures; production Hermes mutation composition lacks verified authorization/live contract evidence. Direct Developer ID/notarized DMG distribution remains separate.
+
 ## 2026-08-23 successful iOS and macOS TestFlight delivery
 
 - Application source: pushed `main` at `23650a9301595c68f2b51a996c3fae4bbf53dbba` before both signed builds. The worktree and `origin/main` matched that SHA.

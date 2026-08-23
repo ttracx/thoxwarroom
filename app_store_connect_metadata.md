@@ -18,15 +18,17 @@ evidence is retained separately in `release_evidence.md`.
 | User access | Full Access | Created value |
 | Developer name | THOX AI LLC | Account-controlled value; confirm in the website |
 
-The shared record exists under THOX AI LLC. iOS and macOS build 2 are valid and
-assigned to the `THOX AI LLC Internal` TestFlight group.
+The shared record exists under THOX AI LLC. iOS and macOS build 3 are valid,
+`IN_BETA_TESTING`, and assigned to the `THOX AI LLC Internal` TestFlight group.
+Build 2 remains assigned as prior evidence. The single tester is still invited;
+invitation acceptance and physical install/launch are not observed.
 
 ## Current build identity
 
 | Property | Value |
 |---|---|
 | Marketing version | `4.2.0` |
-| Build number | `2` |
+| Build number | `3` |
 | Bundle ID | `ai.thox.warroom` |
 | Team | THOX AI LLC (`DVJ6Z5343U`) |
 | iOS minimum | iOS 17 |
@@ -34,8 +36,8 @@ assigned to the `THOX AI LLC Internal` TestFlight group.
 | iOS device family | iPhone |
 
 Every accepted upload must use a build number not previously accepted for the
-same version. Increment `CURRENT_PROJECT_VERSION` before a replacement upload
-after Apple accepts build 2.
+same version. `CURRENT_PROJECT_VERSION` is now `3`; increment it before any
+replacement upload after Apple accepted build 3.
 
 ## TestFlight beta draft
 

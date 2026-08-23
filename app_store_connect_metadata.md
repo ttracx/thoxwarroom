@@ -18,10 +18,10 @@ evidence is retained separately in `release_evidence.md`.
 | User access | Full Access | Created value |
 | Developer name | THOX AI LLC | Account-controlled value; confirm in the website |
 
-The shared record exists under THOX AI LLC. iOS and macOS build 4 are valid,
+The shared record exists under THOX AI LLC. iOS and macOS build 5 are valid,
 `IN_BETA_TESTING`, and assigned to the `THOX AI LLC Internal` TestFlight group.
-Builds 2 and 3 remain assigned as prior evidence. The group currently reports
-four testers and six platform builds. App Store Connect reports iOS build 4
+Builds 2 through 4 remain assigned as prior evidence. After build 5 assignment,
+the group reports four testers and eight platform builds. App Store Connect reports iOS build 4
 installed on one iPad; direct launch/session proof is absent, the connected
 iPhone remains on build 3, and macOS build 4 is visible but not installed.
 
@@ -30,7 +30,7 @@ iPhone remains on build 3, and macOS build 4 is visible but not installed.
 | Property | Value |
 |---|---|
 | Marketing version | `4.2.0` |
-| Build number | `5` release candidate (`4` is the latest Apple-accepted build) |
+| Build number | `5` |
 | Bundle ID | `ai.thox.warroom` |
 | Team | THOX AI LLC (`DVJ6Z5343U`) |
 | iOS minimum | iOS 17 |
@@ -38,8 +38,8 @@ iPhone remains on build 3, and macOS build 4 is visible but not installed.
 | iOS device family | iPhone |
 
 Every accepted upload must use a build number not previously accepted for the
-same version. `CURRENT_PROJECT_VERSION` is now `5` for the next iOS and macOS
-upload after Apple accepted build 4.
+same version. `CURRENT_PROJECT_VERSION` is now `5`, and Apple has accepted that
+number for both platforms; increment it before any replacement upload.
 
 ## TestFlight beta draft
 

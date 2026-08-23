@@ -10,8 +10,8 @@ Evidence must remain separated:
 
 - **Historical implementation evidence:** tag `v4.1.0` / commit `96ca830` contains the former Flutter product and its Hermes, War Room, chat, automation, workspace, memory, insights, and platform modules. This is useful behavior inventory, not current runtime or release evidence.
 - **Current source evidence:** current native packages implement typed, bounded, testable contracts without copying the GPL-era runtime.
-- **Current local validation:** 214 package tests pass with warnings-as-errors; 97 integrated macOS app tests pass; seven Python release/security tests, deterministic project/assets, privacy checks, and the generic dual-architecture iOS Simulator test build pass for the build 5 candidate.
-- **Current signing evidence:** final-source iOS and native macOS App Store build 4 artifacts from pushed SHA `4518091` uploaded successfully, reached Apple `VALID` / `IN_BETA_TESTING`, and are assigned to the THOX internal TestFlight group.
+- **Current local validation:** 214 package tests pass with warnings-as-errors; 97 integrated macOS app tests pass; seven Python release/security tests, deterministic project/assets, privacy checks, and the generic dual-architecture iOS Simulator test build pass for build 5.
+- **Current signing evidence:** final-source iOS and native macOS App Store build 5 artifacts from pushed SHA `2c299ef` uploaded successfully, reached Apple `VALID` / `IN_BETA_TESTING`, and are assigned to the THOX internal TestFlight group.
 - **Current external blockers:** App Store Connect reports iOS build 4 installed on one iPad, but direct launch/runtime evidence is unobserved; the connected iPhone remains on build 3 and the Mac TestFlight catalog offers build 4 for installation. GitHub jobs stop before all steps because the account is locked by a billing issue. A Developer ID Application certificate is unavailable for direct macOS notarization.
 
 ## Hermes-era inventory and current disposition
@@ -24,7 +24,7 @@ Evidence must remain separated:
 | Workspace | Models, knowledge, tools, skills, file browser | Multiple validated provider profiles encrypted with device-only keys, explicit active selection, isolated resumable credential-first deletion with verified fallback selection, and confined read-only local text browser | Profile revision/CAS, opaque routing index, persisted security-scoped bookmarks, background deletion recovery |
 | Audit | Event intent in historical features | Redaction-revalidated AES-GCM generations with bounded paging/export, device-only rollback anchor, crash-safe retention, cooperative cross-process serialization, encrypted confirmed-policy persistence, and native explicit apply/export controls | Automatic scheduler, signed export/external anchoring, app mutation wiring |
 | Automations and mutations | Editors, schedules, cards | One-shot coordinator, encrypted operation store, replay rejection, crash reconciliation, and human review UI; production host remains disabled | Verified RBAC/policy and current live mutation contract before transport composition |
-| Platform/release | iOS/macOS integrations and historical workflows | Native targets, deterministic project generation, privacy manifest, SPDX SBOM, valid internally testing iOS/macOS build 4 artifacts | Physical TestFlight install/launch and Developer ID notarized Mac artifact |
+| Platform/release | iOS/macOS integrations and historical workflows | Native targets, deterministic project generation, privacy manifest, SPDX SBOM, valid internally testing iOS/macOS build 5 artifacts | Physical build 5 TestFlight install/launch and Developer ID notarized Mac artifact |
 
 The historical modules are not treated as production-ready. Git proves source existed; it does not prove a deployed backend contract, secure workflow, physical-device result, or which agent authored the work. Git records the commits as THOX Engineering/Tommy, not an identity named “Hermes Agent.”
 
@@ -58,7 +58,7 @@ The historical modules are not treated as production-ready. Git proves source ex
 5. Audit locks are advisory and protect only cooperative writers sharing the same app-container lock root; each append remains O(n), with a 10,000-entry/16 MiB cap.
 6. Automatic audit scheduling, signed full-data export, encrypted chat/document history, RBAC, opaque routing indexes, persisted security-scoped bookmarks, and background deletion recovery remain unfinished. Encrypted audit-policy persistence and the interactive multi-workspace lifecycle are implemented.
 7. DNS-rebinding resistance, live endpoint authentication, physical locked-device behavior, and packaged-app workflows are not proven.
-8. iOS and native macOS TestFlight build 4 artifacts are valid and internally testing. App Store Connect reports build 4 installed on one iPad, but no direct launch/session proof exists; the connected iPhone remains on build 3 and macOS build 4 remains available but uninstalled. Direct macOS release cannot complete without a THOX Developer ID Application signing/notarization path.
+8. iOS and native macOS TestFlight build 5 artifacts are valid and internally testing. App Store Connect reports only build 4 installed on one iPad; no direct build 5 launch/session proof exists, the connected iPhone remains on build 3, and the last observed Mac TestFlight state showed build 4 available but uninstalled. Direct macOS release cannot complete without a THOX Developer ID Application signing/notarization path.
 9. Remote CI is not evidence while GitHub jobs have zero steps due the account billing lock.
 10. The historical app is GPL-3.0 while current native `main` is MIT. Legacy implementation source must not be copied without an explicit legal choice.
 

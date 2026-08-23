@@ -1,5 +1,17 @@
 # Release Evidence
 
+## 2026-08-23 multi-workspace iOS and macOS TestFlight build 5 delivery
+
+- Exact pushed source: `2c299efa79caad9e08aa6f4fa41e349094f9e237` on `main`. The source adds encrypted multi-workspace enumeration, verified explicit selection, isolated credential-first deletion, and verified deterministic fallback selection (`f2e547b`), then advances both Apple targets to 4.2.0 (5) with current architecture/security/release documentation (`2c299ef`).
+- Pre-release validation: tracked-source secret scan, deterministic SPDX generation, deterministic XcodeGen/assets/privacy validation, 7 Python tests, 214 standalone Swift package tests with warnings as errors, 97 integrated macOS tests, and the generic arm64/x86_64 iOS Simulator test build passed. The focused encrypted-workspace suite passed 13/13 tests. The machine's LaunchServices registration child hung during the macOS Xcode stages; only the exact `lsregister` child for each generated ThoxWarRoom app was terminated, after which Xcode recorded registration as skipped and completed successfully.
+- iOS 4.2.0 (5): build/delivery ID `dbc143d9-5881-4bb9-91ca-2ffb01d70fce`; IPA `build/ios-2c299ef/export/ThoxWarRoom.ipa`; SHA-256 `5adb484dcb5a2c2ef77fd9b905da05f75923bb7196e202c70fb1c84bca6fce30`. Archive, export, embedded privacy-manifest validation, and upload completed without errors.
+- macOS 4.2.0 (5): build/delivery ID `dbdd4881-83e4-4507-a823-faa9b38e86e9`; package `build/macos-appstore-2c299ef/export/ThoxWarRoom.pkg`; SHA-256 `ece17e50e2128c8dbd672c16e6c7a95218bccd9507b88ad8fb4672d32ecc4677`. The archived app passed strict code-sign, sandbox/no-debug, privacy-manifest, and universal x86_64/arm64 checks; the exported installer passed Apple certificate-chain validation and uploaded without errors.
+- Shared source-revision SPDX SHA-256: `ce5e75764239359e2f80c99abc8227e4f7feb53d5da921d6e262f5ea0dbea875`.
+- App Store Connect processing: both build 5 records are `VALID`, `IN_BETA_TESTING`, and `READY_FOR_BETA_SUBMISSION`. Adding both build IDs to internal group `312308e3-a3d6-4dbf-bc08-c7c1be6081e5` returned HTTP 204.
+- Xcode/computer-use evidence remains distinct: the exact `ThoxWarRoom.xcodeproj` was opened and showed the native iOS scheme ready before this candidate. After assignment, a fresh App Store Connect UI reload showed `THOX AI LLC Internal` with 4 testers and 8 builds, up from 6; archive/export/upload and API processing evidence above prove the build-5 release lane.
+- Physical evidence remains separate. App Store Connect reports iOS build 4 installed on an iPad, not build 5 runtime. The connected iPhone remains on build 3, and macOS build 4 was visible but uninstalled before this upload. No direct build-5 launch, authentication, relaunch, locked-device, or removal smoke is claimed.
+- A proposed URLSession DNS/IP-pinning change was excluded after a credential-free live probe proved that replacing an HTTPS hostname with its IP breaks virtual-host TLS/SNI before delegate trust evaluation can repair it. DNS-bound transport remains an explicit gate and requires a reviewed connection primitive that preserves logical-host SNI while binding an approved peer address.
+
 ## 2026-08-23 Audit Center iOS and macOS TestFlight build 4 delivery
 
 - Exact pushed source: `4518091bbaf2eff93b8512fb54148b6b0ccf7194` on `main`. Source changes include read-only Hermes operation reconciliation (`455b094`), encrypted workspace audit-policy persistence (`278493f`), native cross-platform Audit Center (`7fcb169`), and fail-closed stale-policy handling (`7422cd8`).

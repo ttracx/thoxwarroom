@@ -13,6 +13,18 @@ Evidence is recorded per platform and must not be generalized across lanes.
 - Secret-free CI passed deterministic XcodeGen/assets/privacy checks, 106 standalone package tests with warnings as errors, 61 integrated macOS app tests, and the generic iOS Simulator app/test build.
 - This is source, local-test, and simulator-build evidence. Physical locked-device behavior, rollback anchoring, HMAC-obscured routing indexes, encrypted chat/document history, a concrete durable audit ledger, and a fresh signed/TestFlight artifact remain separate gates.
 
+## 2026-08-23 encrypted-storage iOS archive and TestFlight attempt
+
+- Source: pushed `main` at `df79fdc7980b8c4af6140b2a3cbcf64a227e6047`.
+- App Store Connect API credential structure validation succeeded with the externally supplied key; no private key or bearer token was copied into the repository or logs.
+- Release archive and App Store export succeeded at `build/ios-encrypted/ThoxWarRoom.xcarchive` and `build/ios-encrypted/export/ThoxWarRoom.ipa`.
+- Exported signature: `Apple Distribution: THOX AI LLC (DVJ6Z5343U)`; identifier `ai.thox.warroom`; TeamIdentifier `DVJ6Z5343U`; strict deep signature verification passed.
+- Provisioning: `iOS Team Store Provisioning Profile: ai.thox.warroom`; application identifier `DVJ6Z5343U.ai.thox.warroom`; `beta-reports-active=true`; `get-task-allow=false`.
+- Exported entitlements include `com.apple.developer.default-data-protection=NSFileProtectionComplete`.
+- IPA SHA-256: `43aa201ff1aacf6bd07d8986c14f9171070d99d38fc00db0bf58b37dfed22f65`.
+- TestFlight upload was attempted and rejected before transfer with exact App Store Connect error: `Cannot determine the Apple ID from Bundle ID 'ai.thox.warroom' and platform 'IOS'. (19)` followed by `ExitFailure (31)`.
+- Remaining owner gate: create the iOS App Store Connect app record for bundle `ai.thox.warroom`, then rerun this exact upload, wait for processing, install through TestFlight, and complete physical-device encrypted-storage/auth/relaunch checks.
+
 ## 2026-08-23 Apple privacy manifest validation
 
 - Source release commit: `1056d60` on `main`.

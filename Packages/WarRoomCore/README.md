@@ -14,6 +14,11 @@ credential or profile persistence.
 - provider capability declarations used to gate features;
 - audit events that irreversibly redact sensitive and secret-named fields before
   they reach a persistence seam;
+- bounded, explicitly confirmed workspace audit-retention policies with
+  compare-and-swap persistence, monotonic application timestamps, and no implied
+  policy when a record is absent;
+- an explicit lifecycle coordinator that validates retention results before
+  recording application and never applies retention during policy lookup or save;
 - `Sendable` protocols for profile storage, credential vaults, provider transport,
   and audit recording so later slices can be tested with in-memory implementations.
 

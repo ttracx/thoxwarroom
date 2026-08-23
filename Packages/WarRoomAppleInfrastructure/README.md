@@ -79,8 +79,27 @@ The current foundation deliberately does not provide a default
 `WorkspaceProfileStore`. A safe profile adapter must receive an injected, Sendable
 provider-policy codec/resolver from the app and reconstruct capabilities from
 current trusted policy. Persisted provider capability sets must never be decoded
-and reused as authorization. Durable audit persistence remains a separate follow-up
-on top of the same encrypted-record primitive.
+and reused as authorization.
+
+## Encrypted workspace audit policies
+
+`EncryptedWorkspaceAuditPolicyStore` persists only explicitly confirmed Core
+policies. Each workspace record is AES-256-GCM encrypted under a dedicated
+device-only, non-synchronizing Keychain key namespace. A separate Keychain anchor
+commits the current revision and SHA-256 policy digest. Workspace-scoped file locks
+serialize cooperating processes, and compare-and-swap revisions prevent stale
+writes.
+
+Missing ciphertext behind a non-empty anchor, missing anchors beside ciphertext,
+authenticated older records, divergent predecessor commitments, corrupt payloads,
+and cross-workspace records all fail closed. A record exactly one revision ahead
+of its predecessor anchor is the single accepted crash-recovery state; after
+Keychain access returns, the anchor is advanced before the policy is returned.
+Keychain, file, and codec errors are mapped to bounded redacted failures.
+
+Policy lookup and persistence never invoke audit pruning. Retention is applied only
+through Core's explicit `WorkspaceAuditLifecycleCoordinator.applyConfirmedPolicy`
+operation, preserving the human-in-the-loop boundary.
 
 ### Security limitations
 
@@ -89,7 +108,8 @@ on top of the same encrypted-record primitive.
 - macOS does not provide the same locked-device file-protection semantics as iOS;
   macOS protection is AES-GCM plus Keychain access, sandbox containment, and POSIX
   permissions.
-- The package does not claim rollback detection for replay of an older, otherwise
-  valid authenticated record.
+- The generic encrypted-record primitive does not itself provide rollback
+  detection. Audit ledgers, audited operations, and audit policies add independent
+  Keychain commitments at their higher-level persistence boundaries.
 - Simulator and unit tests cannot prove physical-device lock-state behavior or
   production signing/entitlement behavior.

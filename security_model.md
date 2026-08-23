@@ -75,6 +75,15 @@ Audit events redact every field marked sensitive plus secret-like field names
 before they cross the recording seam. Full prompts, documents, credentials, and
 tokens must never be reintroduced by a concrete audit store.
 
+`EncryptedDurableAuditEventStore` is the current concrete Apple persistence
+seam. It revalidates decoded events, encrypts one bounded ledger per workspace,
+serializes appends within one actor instance, chains ordered entries, and binds
+page cursors to the workspace and preceding digest. AES-GCM protects the whole
+ledger from ciphertext modification and substitution. The internal chain does
+not detect replacement with an older valid ciphertext or valid tail truncation;
+no mutation workflow may treat it as rollback-resistant until a monotonic
+Keychain head anchor and crash-recovery protocol exist.
+
 ## Storage and retention
 
 - Workspace profile payloads are AES-256-GCM encrypted with a fresh nonce and HKDF-derived purpose key. Associated data binds workspace, collection, record, algorithm, key reference, and canonical timestamps.
@@ -93,10 +102,10 @@ Record authentication outcomes, workspace/profile changes, Hermes approvals/deni
 ## Current known risks
 
 - Native onboarding encrypts validated profile payloads locally. `UserDefaults` contains only the active workspace UUID and temporary legacy migration evidence; Open WebUI and Hermes credentials use a separate workspace-scoped, non-synchronizing `WhenUnlockedThisDeviceOnly` Keychain adapter. Workspace deletion removes the provider secret before cryptographic profile erasure and preserves metadata if credential deletion fails. Authentication is not yet verified against a real private provider.
-- Hermes review is intentionally read-only. It requires a stored workspace credential, reads that credential once per status/event snapshot, validates the Hermes provider capability, and exposes no approve or stop operation. Durable audited approval controls remain unimplemented.
+- Hermes review is intentionally read-only. It requires a stored workspace credential, reads that credential once per status/event snapshot, validates the Hermes provider capability, and exposes no approve or stop operation. The package now has a bounded incremental event-stream seam, but the app remains on the buffered client until a concrete streaming transport/reconnect contract and live evidence exist. Durable audited approval coordination remains unimplemented.
 - MeshStack War Room is intentionally read-only. It requires the exact Mesh provider identity, `.warRoomStatus` capability, a workspace-scoped Keychain credential, and a canonical operator-entered MeshID before transport. Devices, topology, and events load independently so verified partial results retain provenance; no control-plane mutation is exposed. The contract is source-defined and synthetic-fixture-tested, not live-verified.
 - The concrete transport enforces exact-origin redirects and local resource bounds but is not yet DNS-rebinding-resistant and has not completed live certificate/private-endpoint tests.
 - The hosted compatibility implementation still uses the default persistent website data store and lacks verified server-retention and embedded-domain evidence. Its user-facing route is therefore feature-disabled even for an exact authorized origin; re-enabling requires a reviewed privacy contract and workspace-isolated storage.
-- There is no encrypted chat/document history, concrete durable local audit ledger, Keychain rollback anchor, RBAC, or verified full-data deletion/export workflow. Ciphertext paths currently expose raw workspace UUID routing metadata, and physical locked-device/file-protection behavior is not yet evidenced. Both app targets bundle a validated privacy manifest that declares no tracking domains, no developer/SDK data collection, and app-only UserDefaults reason `CA92.1`; this matches the current direct required-reason API use and must be reviewed again whenever storage, telemetry, SDKs, or network ownership changes.
+- There is no encrypted chat/document history, Keychain audit rollback anchor, cross-instance audit writer lock/CAS, audit retention/export policy, RBAC, or verified full-data deletion/export workflow. The concrete audit ledger is bounded and not yet composed into mutation workflows. Ciphertext paths currently expose raw workspace UUID routing metadata, and physical locked-device/file-protection behavior is not yet evidenced. Both app targets bundle a validated privacy manifest that declares no tracking domains, no developer/SDK data collection, and app-only UserDefaults reason `CA92.1`; this matches the current direct required-reason API use and must be reviewed again whenever storage, telemetry, SDKs, or network ownership changes.
 - The macOS release script now requires Developer ID Application signing, rejects `get-task-allow`, uses a Keychain-backed notary profile, staples before final staging, and validates the exact final DMG and mounted app. A live signed/notarized run and clean-device behavior are still not proven. The iOS archive/export is Apple Distribution signed and provisioned for `DVJ6Z5343U.ai.thox.warroom`; upload remains blocked because App Store Connect has no app record for the existing bundle ID.
 - The published v4.2 macOS app is a development-signed preview rejected by Gatekeeper, not a production distribution.

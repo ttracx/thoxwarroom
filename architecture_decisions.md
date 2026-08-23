@@ -95,3 +95,27 @@
 - **Compliance impact:** encryption, migration, deletion ordering, and negative tests create reviewable controls without claiming certification or physical-device verification.
 - **Final choice:** `WarRoomAppleInfrastructure` owns the ciphertext/key primitives; the app owns provider-aware profile encoding and revalidates provider capabilities and endpoint policy from current trusted code after decryption.
 - **Follow-up:** add a transactional encrypted audit ledger with keyed chain and Keychain rollback anchor, obscure workspace routing indexes, implement retention/export and resumable deletion, and verify locked-device behavior on physical hardware.
+
+## ADR-009: Ship a bounded encrypted audit ledger before mutation wiring
+
+- **Decision:** Implement `DurableAuditEventStore` on Apple platforms as one workspace-scoped AES-256-GCM atomic ledger with canonical event revalidation, actor-serialized appends, ordered SHA-256 entry chaining, and digest-bound cursors. Do not enable Hermes or other mutations merely because this persistence seam exists.
+- **Context:** Profiles are encrypted, but high-impact workflows also require durable redacted evidence. The current atomic encrypted file store can deliver a bounded local slice without adding SQLite or a cloud dependency.
+- **Options considered:** retain in-memory recording; add SQLite and a transactional Keychain anchor immediately; build a bounded encrypted ledger now and keep rollback/policy gaps explicit.
+- **Tradeoffs:** the bounded ledger provides real ciphertext-only durability and detects internal modification/reordering/substitution, but append is O(n), capacity is 10,000 entries/16 MiB, separate instances can race, and a valid older whole ledger or tail truncation is not detectable.
+- **Security impact:** persisted events are revalidated across the decode boundary; workspace/key/AAD isolation, idempotent IDs, bounds, and redacted errors fail closed. This is not a tamper-evident external anchor.
+- **Local-first impact:** audit content and keys remain in the app container and device-only Keychain with no telemetry or hosted dependency.
+- **Compliance impact:** durable local evidence is a reviewable control primitive, not a compliance or non-repudiation claim.
+- **Final choice:** keep the ledger available as an infrastructure seam while mutation UI stays disabled.
+- **Follow-up:** add a Keychain monotonic head anchor with crash recovery, cross-instance CAS/file locking, retention/export policy, audited-operation coordination, and app composition wiring.
+
+## ADR-010: Contract evidence gates native chat capability
+
+- **Decision:** Open WebUI advertises native chat, streaming, and citation capabilities only after all required authenticated non-production contract evidence is captured and sanitized.
+- **Context:** Current evidence proves public discovery plus unauthenticated `401` boundaries for candidate chat/history routes. That does not establish credential lifecycle, DTOs, stream frames, cancellation/errors, durable history, or citations.
+- **Options considered:** infer OpenAI-compatible shapes; copy an older client contract; keep an executable missing-evidence set that fails closed.
+- **Tradeoffs:** native chat stays unavailable longer, but provider drift cannot silently enable guessed traffic or persistence.
+- **Security impact:** no credential or sensitive prompt is sent through an unverified route; no unsupported source-citation claim is exposed.
+- **Local-first impact:** the eventual contract must preserve operator-selected local/private routing and no silent cloud fallback.
+- **Compliance impact:** captured provenance and explicit capability activation make review possible; no deployed-provider assurance is claimed.
+- **Final choice:** executable fail-closed evidence gate and sanitized boundary fixture.
+- **Follow-up:** provision a sanctioned non-production identity and capture the nine documented evidence categories before adding DTOs or transport methods.

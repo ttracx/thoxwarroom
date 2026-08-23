@@ -1,5 +1,14 @@
 # Release Evidence
 
+## 2026-08-23 contract/audit/streaming wave
+
+- `WarRoomAppleInfrastructure` now supplies a concrete encrypted durable-audit store: workspace-scoped AES-256-GCM ciphertext, canonical redaction revalidation, actor-serialized ordered append, internal SHA-256 chain, idempotent IDs, bounded capacity/pages, time filtering, and digest-bound cursors.
+- This is not rollback-resistant audit evidence: no external/Keychain monotonic head anchor exists, valid whole-ledger rollback/tail truncation is undetected, separate store instances can race, and retention/export/app mutation wiring remain open.
+- `WarRoomHermes` now supplies a transport-neutral incremental event client with exact captured routing, bounded fragmented SSE parsing, cancellation, credential forwarding, and cross-run rejection. The app remains buffered; there is no concrete Apple streaming transport, reconnect/cursor behavior, or live provider proof.
+- `WarRoomOpenWebUI` now has an executable fail-closed authenticated-chat evidence gate plus sanitized unauthenticated route-boundary fixture. Chat, streaming, and citation capabilities remain disabled; no DTO or traffic shape was guessed.
+- Local validation: 119/119 package tests passed with warnings-as-errors. `CI_DERIVED_DATA=build/ci-wave2 ./scripts/ci_unsigned.sh` passed deterministic XcodeGen/assets, privacy checks, integrated macOS tests, and generic iOS Simulator test build.
+- This validation occurred after the previously signed IPA, so a fresh signed archive/upload is required for the new source revision.
+
 Evidence is recorded per platform and must not be generalized across lanes.
 
 ## 2026-08-23 encrypted workspace-profile integration
@@ -11,7 +20,7 @@ Evidence is recorded per platform and must not be generalized across lanes.
 - App integration stores only provider ID and canonical validated profile fields, reconstructs capabilities from current trusted code, and revalidates endpoint/boundary/provider policy after decryption.
 - Legacy plaintext preferences are removed only after encrypted write/read-back and active-selector persistence succeed. Credential deletion precedes profile cryptographic erasure, and interrupted ciphertext cleanup is retryable from the retained selector.
 - Secret-free CI passed deterministic XcodeGen/assets/privacy checks, 106 standalone package tests with warnings as errors, 61 integrated macOS app tests, and the generic iOS Simulator app/test build.
-- This is source, local-test, and simulator-build evidence. Physical locked-device behavior, rollback anchoring, HMAC-obscured routing indexes, encrypted chat/document history, a concrete durable audit ledger, and a fresh signed/TestFlight artifact remain separate gates.
+- This is source, local-test, and simulator-build evidence. Physical locked-device behavior, rollback anchoring, HMAC-obscured routing indexes, encrypted chat/document history, app-wired audit policy, and a fresh signed/TestFlight artifact remain separate gates.
 
 ## 2026-08-23 encrypted-storage iOS archive and TestFlight attempt
 

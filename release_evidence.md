@@ -32,3 +32,9 @@ No API private key or bearer token is stored in this repository or this evidence
 - Remaining gate: install the THOX Developer ID Application identity, configure a Keychain notary profile, run the release mode, and retain final `codesign`, `stapler`, `spctl`, mounted-app, checksum, and clean-device evidence.
 
 The unsigned DMG is build evidence only and is not a distributable release.
+
+## 2026-08-23 native CI activation
+
+- Initial run `32638587436` failed before executing any step because the `macos-26` runner did not start.
+- The workflow was moved to the generally available `macos-15` runner. This unsigned lane targets iOS 17+ and macOS 14+ and does not consume release secrets.
+- A green GitHub Actions run is still required before WR-010 is considered implemented remotely.

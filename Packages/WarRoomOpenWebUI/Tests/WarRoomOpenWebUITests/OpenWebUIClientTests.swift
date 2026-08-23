@@ -12,6 +12,62 @@ final class OpenWebUIClientTests: XCTestCase {
         XCTAssertEqual(OpenWebUIProvider.descriptor.capabilities, [.modelCatalog])
         XCTAssertFalse(OpenWebUIProvider.descriptor.supports(.chatCompletions))
         XCTAssertFalse(OpenWebUIProvider.descriptor.supports(.streamingChat))
+        XCTAssertFalse(OpenWebUIProvider.descriptor.supports(.sourceCitations))
+    }
+
+    func testNativeChatCapabilityIsFailClosedUntilAuthenticatedContractIsCaptured() {
+        let contract = OpenWebUIProvider.nativeChatContract
+
+        XCTAssertFalse(contract.isAvailable)
+        XCTAssertEqual(contract.blocker, .authenticatedCaptureRequired)
+        XCTAssertEqual(
+            contract.missingEvidence,
+            Set(OpenWebUINativeChatEvidenceRequirement.allCases)
+        )
+        XCTAssertEqual(contract.advertisedCapabilities, [])
+        XCTAssertFalse(OpenWebUIProvider.descriptor.supports(.chatCompletions))
+        XCTAssertFalse(OpenWebUIProvider.descriptor.supports(.streamingChat))
+        XCTAssertFalse(OpenWebUIProvider.descriptor.supports(.sourceCitations))
+    }
+
+    func testSanitizedChatBoundaryFixtureMatchesExecutableEvidenceGate() throws {
+        let snapshot = try JSONDecoder().decode(
+            NativeChatBoundarySnapshot.self,
+            from: fixtureData(named: "native-chat-boundary.sanitized")
+        )
+
+        XCTAssertEqual(snapshot.fixtureKind, "sanitized_native_chat_contract_boundary")
+        XCTAssertEqual(snapshot.origin, "https://webui.thox.ai")
+        XCTAssertFalse(snapshot.retainedSensitiveValues)
+        XCTAssertEqual(snapshot.contractState.blocker, OpenWebUIProvider.nativeChatContract.blocker)
+        XCTAssertEqual(
+            snapshot.contractState.missingEvidence.count,
+            Set(snapshot.contractState.missingEvidence).count,
+            "The capture checklist must not hide omissions behind duplicate entries"
+        )
+        XCTAssertEqual(
+            Set(snapshot.contractState.missingEvidence),
+            OpenWebUIProvider.nativeChatContract.missingEvidence
+        )
+        XCTAssertEqual(
+            snapshot.observedRoutes,
+            [
+                .init(
+                    method: "POST",
+                    path: "/api/chat/completions",
+                    status: 401,
+                    contentType: "application/json",
+                    bodyKeys: ["detail"]
+                ),
+                .init(
+                    method: "GET",
+                    path: "/api/v1/chats/",
+                    status: 401,
+                    contentType: "application/json",
+                    bodyKeys: ["detail"]
+                ),
+            ]
+        )
     }
 
     func testHealthUsesExactGetRequestAndAcceptsObservedResponse() async throws {
@@ -233,6 +289,46 @@ final class OpenWebUIClientTests: XCTestCase {
     private func fixtureObject(named name: String) throws -> [String: Any] {
         let object = try JSONSerialization.jsonObject(with: fixtureData(named: name))
         return try XCTUnwrap(object as? [String: Any])
+    }
+}
+
+private struct NativeChatBoundarySnapshot: Decodable {
+    struct ContractState: Decodable {
+        let blocker: OpenWebUINativeChatContract.Blocker
+        let missingEvidence: [OpenWebUINativeChatEvidenceRequirement]
+
+        private enum CodingKeys: String, CodingKey {
+            case blocker
+            case missingEvidence = "missing_evidence"
+        }
+    }
+
+    struct ObservedRoute: Decodable, Equatable {
+        let method: String
+        let path: String
+        let status: Int
+        let contentType: String
+        let bodyKeys: [String]
+
+        private enum CodingKeys: String, CodingKey {
+            case method, path, status
+            case contentType = "content_type"
+            case bodyKeys = "body_keys"
+        }
+    }
+
+    let fixtureKind: String
+    let origin: String
+    let observedRoutes: [ObservedRoute]
+    let contractState: ContractState
+    let retainedSensitiveValues: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case fixtureKind = "fixture_kind"
+        case origin
+        case observedRoutes = "observed_routes"
+        case contractState = "contract_state"
+        case retainedSensitiveValues = "retained_sensitive_values"
     }
 }
 

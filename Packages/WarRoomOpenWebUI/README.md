@@ -13,6 +13,7 @@ through the caller-supplied `ProviderTransport` seam.
 - typed DTOs and non-sensitive errors
 - response-size checks before text or JSON decoding
 - cancellation propagation
+- an executable, fail-closed native-chat evidence gate
 - fully offline transport-double tests
 
 `OpenWebUIProvider.descriptor` advertises only `modelCatalog`. The package does
@@ -37,6 +38,14 @@ Still unverified and intentionally absent:
 - credential issuance, refresh, revocation, or cookie-to-token handoff;
 - chat creation, chat history, completions, streaming, and citations;
 - any live authenticated response fixture.
+
+`OpenWebUIProvider.nativeChatContract` exposes the stable
+`authenticated_capture_required` blocker and the exact missing evidence set.
+The provider descriptor derives chat capabilities from that gate, so route-only
+or unauthenticated evidence cannot accidentally enable native chat. The
+sanitized `native-chat-boundary` fixture verifies the observed `401` route
+boundaries while explicitly retaining no credential, prompt, response, or user
+data.
 
 Credentials are opaque `ProviderCredential` values and are forwarded only to
 the protected model request. Public health, version, and configuration probes

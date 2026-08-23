@@ -1,0 +1,36 @@
+{
+  "fixture_kind": "sanitized_native_chat_contract_boundary",
+  "captured_at": "2026-08-23",
+  "origin": "https://webui.thox.ai",
+  "observed_routes": [
+    {
+      "method": "POST",
+      "path": "/api/chat/completions",
+      "status": 401,
+      "content_type": "application/json",
+      "body_keys": ["detail"]
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/chats/",
+      "status": 401,
+      "content_type": "application/json",
+      "body_keys": ["detail"]
+    }
+  ],
+  "contract_state": {
+    "blocker": "authenticated_capture_required",
+    "missing_evidence": [
+      "credential_lifecycle",
+      "non_streaming_request",
+      "non_streaming_response",
+      "streaming_transport",
+      "streaming_frames",
+      "cancellation",
+      "error_responses",
+      "durable_history",
+      "source_citations"
+    ]
+  },
+  "retained_sensitive_values": false
+}

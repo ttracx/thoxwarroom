@@ -15,13 +15,78 @@ public enum OpenWebUIEndpoint: String, Codable, Equatable, Sendable {
 
 /// Static metadata for the clean-room Open WebUI provider slice.
 public enum OpenWebUIProvider {
+    /// Evidence gate for native chat against the currently captured deployment.
+    ///
+    /// Route existence and an authentication challenge do not establish a safe
+    /// request or response contract. Callers can use this value to explain why
+    /// native chat is unavailable without inventing a provider-specific shape.
+    public static let nativeChatContract = OpenWebUINativeChatContract.current
+
     /// The only product capability implemented by WR-004 is model discovery.
-    /// Chat, streaming, history, and citations remain intentionally absent.
+    /// Chat capabilities are derived from the evidence gate and therefore stay
+    /// absent until every required authenticated contract element is captured.
     public static let descriptor = ProviderDescriptor(
         id: ProviderID(rawValue: "open-webui"),
         displayName: "Open WebUI",
-        capabilities: [.modelCatalog]
+        capabilities: Set([ProviderCapability.modelCatalog])
+            .union(nativeChatContract.advertisedCapabilities)
     )
+}
+
+/// An authenticated contract element required before native Open WebUI chat
+/// can safely be advertised or invoked.
+public enum OpenWebUINativeChatEvidenceRequirement: String, Codable, CaseIterable, Hashable, Sendable {
+    /// How an externally provisioned bearer credential is issued, refreshed,
+    /// revoked, and logged out without collecting a password in the app.
+    case credentialLifecycle = "credential_lifecycle"
+    /// Authenticated non-streaming request field names, types, and bounds.
+    case nonStreamingRequest = "non_streaming_request"
+    /// Authenticated non-streaming success response envelope.
+    case nonStreamingResponse = "non_streaming_response"
+    /// Streaming transport, content type, and connection headers.
+    case streamingTransport = "streaming_transport"
+    /// Streaming frame schema, ordering rules, and normal termination marker.
+    case streamingFrames = "streaming_frames"
+    /// Server behavior and client semantics for cancellation.
+    case cancellation = "cancellation"
+    /// Sanitized authentication, validation, and server error envelopes.
+    case errorResponses = "error_responses"
+    /// Minimum create, update, list, and get sequence for durable conversation history.
+    case durableHistory = "durable_history"
+    /// Citation and source field shapes, including their absence semantics.
+    case sourceCitations = "source_citations"
+}
+
+/// Current readiness of the native Open WebUI chat contract.
+public struct OpenWebUINativeChatContract: Equatable, Sendable {
+    /// Stable non-sensitive reason suitable for product routing and diagnostics.
+    public enum Blocker: String, Codable, Equatable, Sendable {
+        case authenticatedCaptureRequired = "authenticated_capture_required"
+    }
+
+    /// Why native chat cannot currently be enabled.
+    public let blocker: Blocker
+    /// Exact evidence still required to define bounded request/response DTOs.
+    public let missingEvidence: Set<OpenWebUINativeChatEvidenceRequirement>
+
+    /// `false` until a later, reviewed contract capture replaces this gate.
+    public var isAvailable: Bool { false }
+
+    /// Capabilities that can truthfully be advertised from this evidence.
+    public var advertisedCapabilities: Set<ProviderCapability> { [] }
+
+    fileprivate static let current = OpenWebUINativeChatContract(
+        blocker: .authenticatedCaptureRequired,
+        missingEvidence: Set(OpenWebUINativeChatEvidenceRequirement.allCases)
+    )
+
+    private init(
+        blocker: Blocker,
+        missingEvidence: Set<OpenWebUINativeChatEvidenceRequirement>
+    ) {
+        self.blocker = blocker
+        self.missingEvidence = missingEvidence
+    }
 }
 
 /// Validated response-size policy for Open WebUI provider calls.

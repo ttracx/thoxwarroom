@@ -166,7 +166,7 @@
 - **Local-first impact:** retention, anchor recovery, and export remain inside the app container and device-only Keychain with no hosted service or plaintext temporary file.
 - **Compliance impact:** configurable retention and reviewable redacted export are control primitives, not legal-policy approval, a digital signature, or external non-repudiation.
 - **Final choice:** 30–2555 finite days with 365 as the default plus explicit indefinite retention; exports cap at 500 events and 8 MiB.
-- **Follow-up:** add administrator policy persistence/UI, scheduled execution, signed export if required, and legal review of domain-specific retention periods.
+- **Follow-up:** encrypted administrator policy persistence and native explicit apply/export UI are implemented. Add automatic scheduled execution only with an independently reviewable policy/authorization boundary, add signed export if required, and obtain legal review of domain-specific retention periods.
 
 ## ADR-015: Declare Apple export compliance at build and delivery boundaries
 
@@ -191,3 +191,15 @@
 - **Compliance impact:** durable redacted lifecycle evidence and explicit human review are reviewable controls, not proof of RBAC correctness, legal authorization, provider success, or external non-repudiation.
 - **Final choice:** ship and test the durable store/coordinator/UI now, but inject no production executor while authorization and live mutation evidence are missing.
 - **Follow-up:** capture a sanctioned authenticated private-provider mutation session, define and verify workspace authorization/RBAC, compose the existing dependencies, then run crash/relaunch and physical-device reconciliation tests before enabling actions.
+
+## ADR-017: Separate audit-policy confirmation from retention application
+
+- **Decision:** Persist confirmed workspace retention policy in a separately encrypted, revision-anchored store, and require an explicit foreground-only application step before the audit lifecycle may prune.
+- **Context:** A durable retention engine without app policy controls left administrators unable to review the exact active choice, while applying retention during load, save, background work, or export would make destructive behavior implicit.
+- **Options considered:** apply on save; apply automatically at launch; keep policy only in memory; persist confirmed policy and expose a separate exact-confirmation action.
+- **Tradeoffs:** the selected flow adds an operator step and no automatic scheduler, but keeps policy reviewable, workspace-scoped, crash-resistant, and independent from destructive execution.
+- **Security impact:** AES-GCM ciphertext, workspace locks, compare-and-swap revisions, and a non-synchronizing device-only Keychain digest/revision anchor fail closed on rollback, deletion, corruption, or cross-workspace substitution. Failed verification clears stale UI state. Export never applies retention.
+- **Local-first impact:** policy, audit content, and export preparation remain on device; the system exporter receives bounded redacted bytes only after the user selects a destination.
+- **Compliance impact:** explicit confirmation and retained application timestamps are reviewable control evidence, not legal approval of a retention period or proof of external non-repudiation.
+- **Final choice:** saving confirms policy without pruning; application requires a second destructive confirmation while the app is active; absent or unverifiable policy disables application.
+- **Follow-up:** validate locked-device and interruption behavior through physical TestFlight installs; add scheduling only with a separately reviewable authorization and execution policy.

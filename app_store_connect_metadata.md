@@ -21,14 +21,16 @@ evidence is retained separately in `release_evidence.md`.
 The shared record exists under THOX AI LLC. iOS and macOS build 3 are valid,
 `IN_BETA_TESTING`, and assigned to the `THOX AI LLC Internal` TestFlight group.
 Build 2 remains assigned as prior evidence. The single tester is still invited;
-invitation acceptance and physical install/launch are not observed.
+invitation acceptance and physical install/launch are not observed. Build 4 is
+the current locally validated source candidate and is not claimed delivered
+until separate App Store Connect processing evidence is recorded.
 
 ## Current build identity
 
 | Property | Value |
 |---|---|
 | Marketing version | `4.2.0` |
-| Build number | `3` |
+| Build number | `4` (source candidate; build 3 remains the latest accepted delivery) |
 | Bundle ID | `ai.thox.warroom` |
 | Team | THOX AI LLC (`DVJ6Z5343U`) |
 | iOS minimum | iOS 17 |
@@ -36,8 +38,8 @@ invitation acceptance and physical install/launch are not observed.
 | iOS device family | iPhone |
 
 Every accepted upload must use a build number not previously accepted for the
-same version. `CURRENT_PROJECT_VERSION` is now `3`; increment it before any
-replacement upload after Apple accepted build 3.
+same version. `CURRENT_PROJECT_VERSION` is now `4`; increment it to `5` before
+any replacement upload after Apple accepts build 4.
 
 ## TestFlight beta draft
 
@@ -46,7 +48,8 @@ replacement upload after Apple accepted build 3.
 ThoxWarRoom is the native THOX command center for explicitly configured local
 or private AI workspaces. This beta covers encrypted workspace setup,
 workspace-scoped credentials, Open WebUI discovery and model catalog, read-only
-Hermes run review, read-only MeshStack status, and local audit-storage controls.
+Hermes run review and reconciliation, read-only MeshStack status, and explicit
+encrypted audit-policy, retention, and redacted-export controls.
 
 Authenticated native chat, Hermes approval/stop actions, and hosted WebView
 compatibility are intentionally unavailable until their contracts and privacy

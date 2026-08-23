@@ -155,3 +155,27 @@
 - **Compliance impact:** explicit provenance and a narrow capability ease review; physical picker/security-scope behavior still requires device evidence.
 - **Final choice:** confined read-only text browsing before search, mutation, sharing, or bookmark persistence.
 - **Follow-up:** manually validate both platform pickers, then design scoped bookmark retention and local-only search if justified.
+
+## ADR-014: Compact audit history through authenticated ledger generations
+
+- **Decision:** Apply explicit finite or indefinite retention by re-chaining retained events into a new ledger generation whose authenticated header commits to the exact predecessor generation, count, head digest, and lifetime commitment.
+- **Context:** Removing expired events from the middle or head of a chained ledger cannot preserve the old chain, and a crash between ciphertext replacement and Keychain anchor advancement must not create an unrecoverable or rollback-accepting state.
+- **Options considered:** delete only a contiguous prefix; reset the anchor after pruning; maintain an unbounded tombstone set; create a successor generation with an authenticated predecessor commitment.
+- **Tradeoffs:** successor generations keep the bounded local file design and support forward recovery, but pruning is O(n), fixed-day based, and no longer retains pruned event IDs for lifetime duplicate detection.
+- **Security impact:** ciphertext is saved before the anchor advances; an old generation is rejected once the anchor advances, while an authenticated exact successor can advance the anchor after a crash. Export verifies integrity and redaction before returning bounded in-memory bytes.
+- **Local-first impact:** retention, anchor recovery, and export remain inside the app container and device-only Keychain with no hosted service or plaintext temporary file.
+- **Compliance impact:** configurable retention and reviewable redacted export are control primitives, not legal-policy approval, a digital signature, or external non-repudiation.
+- **Final choice:** 30–2555 finite days with 365 as the default plus explicit indefinite retention; exports cap at 500 events and 8 MiB.
+- **Follow-up:** add administrator policy persistence/UI, scheduled execution, signed export if required, and legal review of domain-specific retention periods.
+
+## ADR-015: Declare Apple export compliance at build and delivery boundaries
+
+- **Decision:** Set `ITSAppUsesNonExemptEncryption=NO` for both Apple targets and record `usesNonExemptEncryption=false` for delivered builds while the app uses Apple CryptoKit and OS-provided transport/storage cryptography rather than a non-exempt custom cryptographic product.
+- **Context:** both otherwise valid TestFlight builds remained unassignable with `MISSING_EXPORT_COMPLIANCE` until App Store Connect received an explicit classification.
+- **Options considered:** answer manually for every build; omit the declaration and leave builds blocked; encode the reviewed classification in generated Info.plists and retain App Store Connect evidence.
+- **Tradeoffs:** the source declaration removes a repeated release step, but it must be revisited whenever cryptographic code, use case, jurisdiction, or distribution changes.
+- **Security impact:** this metadata does not weaken AES-GCM profile/audit encryption, Keychain protection, or TLS behavior.
+- **Local-first impact:** local encryption remains enabled by default; export metadata does not introduce a network or hosted dependency.
+- **Compliance impact:** this is an engineering classification for Apple delivery, not legal advice or a claim that every export-control obligation is satisfied.
+- **Final choice:** persist the no-non-exempt-encryption declaration in `project.yml` and retain delivery/build-state evidence without storing the API private key or bearer tokens.
+- **Follow-up:** obtain owner/legal re-review before adding custom cryptographic algorithms, cryptographic networking products, or materially different distribution regions.

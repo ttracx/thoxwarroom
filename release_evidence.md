@@ -1,5 +1,18 @@
 # Release Evidence
 
+## 2026-08-23 successful iOS and macOS TestFlight delivery
+
+- Application source: pushed `main` at `23650a9301595c68f2b51a996c3fae4bbf53dbba` before both signed builds. The worktree and `origin/main` matched that SHA.
+- App Store Connect record: created under THOX AI LLC for name `ThoxWarRoom`, bundle `ai.thox.warroom`, SKU `THOXWARROOM-APPLE-2026`, primary locale `en-US`, and both iOS/macOS platforms. App ID: `6804445585`.
+- Integrated release gate: 174/174 standalone Swift package tests, 73/73 integrated macOS app tests, and 7/7 Python release/security tests passed; deterministic XcodeGen/assets/privacy checks and the generic iOS Simulator test build also passed.
+- iOS archive/export/upload: `build/ios-23650a9/ThoxWarRoom.xcarchive` and `build/ios-23650a9/export/ThoxWarRoom.ipa`; IPA SHA-256 `85230cf29e6bdd490880af09ec36b759e18987cf4288de4db5efa8a32db0ba9e`; delivery/build ID `42c44ca0-c1e1-4e59-9017-3f2181ad14b3`.
+- Native macOS App Store archive/export/upload: `build/macos-appstore-23650a9/ThoxWarRoom.xcarchive` and `build/macos-appstore-23650a9/export/ThoxWarRoom.pkg`; package SHA-256 `822a1519956b0c57e1956a52227cad9f674cd5059a59753f5daf7b06e2ce75af`; delivery/build ID `5d367041-21a3-4fa5-9951-541f35f12cb9`.
+- Both lanes generated the same revision-bound SPDX document, SHA-256 `af68dd00b070509b2981ec16d0bfae81050a875e8b348ab3ed87357b190d9d34`.
+- App Store Connect processing: both build 2 artifacts for version 4.2.0 reached `VALID`. After recording `usesNonExemptEncryption=false` for the app's Apple CryptoKit/OS-provided encryption path, both reached `READY_FOR_BETA_TESTING` internally and `READY_FOR_BETA_SUBMISSION` externally.
+- Internal distribution: group `THOX AI LLC Internal` (`312308e3-a3d6-4dbf-bc08-c7c1be6081e5`) contains both builds. The THOX admin `tommy@thox.ai` is an invited internal tester; App Store Connect shows 1 tester and 2 builds.
+- Remaining evidence gates: invitation acceptance and physical iPhone/Mac TestFlight install/launch are not yet observed. External testing still requires beta review submission. Direct Developer ID/notarized DMG distribution remains a separate uncompleted lane.
+- The external API private key and generated bearer tokens were not copied into source, documentation, or retained command output.
+
 ## 2026-08-23 final application-source Apple artifacts
 
 - Application source and reconciled product documentation: pushed `main` at `73a5fff` before this evidence-only append.

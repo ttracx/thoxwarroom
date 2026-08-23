@@ -2,25 +2,24 @@
 
 Last source review: 2026-08-23
 
-This file is a release worksheet, not evidence that Apple has accepted an app
-record, build, privacy answer, export-compliance answer, or review submission.
-Values marked **owner decision** must not be guessed during upload.
+This file records the selected App Store Connect metadata and the fields still
+required for App Store/external-TestFlight review. Processing and distribution
+evidence is retained separately in `release_evidence.md`.
 
 ## New app record
 
 | Field | Proposed value | Evidence/status |
 |---|---|---|
-| Platforms | iOS and macOS | Product goal and shared bundle ID; select both only if THOX wants one multi-platform record |
-| Name | ThoxWarRoom | Current product and bundle display name; within Apple's 30-character limit |
-| Primary language | English (U.S.) | **Owner decision** before record creation |
+| Platforms | iOS and macOS | Created in shared App Store Connect record `6804445585` |
+| Name | ThoxWarRoom | Created value; within Apple's 30-character limit |
+| Primary language | English (U.S.) | Created as `en-US` |
 | Bundle ID | `ai.thox.warroom` | Registered identifier and signed archive evidence |
-| SKU | `THOXWARROOM-APPLE-2026` | **Owner decision**; internal identifier should be treated as permanent |
-| User access | Full Access | **Owner decision**; use Limited Access if app-scoped staff restrictions are required |
+| SKU | `THOXWARROOM-APPLE-2026` | Created value; treat as permanent |
+| User access | Full Access | Created value |
 | Developer name | THOX AI LLC | Account-controlled value; confirm in the website |
 
-Apple requires the app record before the first build upload. The website action
-requires Account Holder, Admin, or App Manager access, and the Account Holder
-must have accepted the latest agreement.
+The shared record exists under THOX AI LLC. iOS and macOS build 2 are valid and
+assigned to the `THOX AI LLC Internal` TestFlight group.
 
 ## Current build identity
 
@@ -67,8 +66,7 @@ boundaries are verified.
 
 ## Submission fields still requiring evidence or owner input
 
-- App Store Connect owner/admin authentication and latest-agreement status.
-- Final choice of platforms, primary language, SKU, and user-access scope.
+- Latest-agreement status before an App Store or external-beta review submission.
 - Support URL candidate: `https://www.thox.ai/help` (live HTTPS help center
   verified 2026-08-23; owner must confirm it is the intended app support page).
 - Privacy-policy URL candidate: `https://www.thox.ai/privacy` (live HTTPS policy
@@ -76,12 +74,14 @@ boundaries are verified.
   this app and every enabled local, private-network, and optional hosted flow).
 - App privacy answers covering every platform and any optional hosted service
   that is enabled in the submitted binary.
-- Export-compliance determination for direct CryptoKit AES-256-GCM use and TLS;
-  this requires owner/legal review and must not be inferred from a build pass.
+- Export compliance is recorded as no non-exempt encryption for the current
+  Apple CryptoKit/OS-provided cryptography path. Owner/legal must re-review this
+  classification if cryptographic code, use case, jurisdictions, or distribution change.
 - Age rating, categories, content rights, regional availability, DSA/trader
   status where applicable, review contact, and review notes.
 - Screenshots captured from the exact submitted binary on required device sizes.
-- TestFlight internal/external tester groups and beta review information.
+- Internal group exists with both builds and `tommy@thox.ai` invited. External
+  beta review information and invitation acceptance/physical install evidence remain.
 - macOS distribution choice: the Mac App Store/TestFlight archive/export path
   and separate notarized Developer ID DMG path are both implemented. The owner
   must choose whether both are distributed and complete the corresponding Apple

@@ -56,4 +56,19 @@ final class AuditEventTests: XCTestCase {
         XCTAssertEqual(credential.debugDescription, "ProviderCredential(<redacted>)")
         XCTAssertFalse(String(describing: credential).contains("secret"))
     }
+
+    func testDuplicateMetadataKeysFailClosedRegardlessOfCaseOrOrder() {
+        let event = AuditEvent(
+            workspaceID: .make(),
+            category: "test",
+            action: "duplicate",
+            outcome: .succeeded,
+            fields: [
+                AuditField(key: "Boundary", value: .string("localMachine"), privacy: .nonSensitive),
+                AuditField(key: "boundary", value: .string("hosted"), privacy: .nonSensitive),
+            ]
+        )
+
+        XCTAssertEqual(event.metadata, ["Boundary": .redacted])
+    }
 }

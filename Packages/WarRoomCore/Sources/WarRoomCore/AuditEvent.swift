@@ -124,6 +124,41 @@ public struct AuditEvent: Equatable, Codable, Sendable {
         self.outcome = outcome
         self.metadata = AuditRedactor.redact(fields)
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case occurredAt
+        case workspaceID
+        case category
+        case action
+        case outcome
+        case metadata
+    }
+
+    /// Re-applies redaction when events cross an untrusted decoding boundary.
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(AuditEventID.self, forKey: .id)
+        occurredAt = try values.decode(Date.self, forKey: .occurredAt)
+        workspaceID = try values.decode(WorkspaceID.self, forKey: .workspaceID)
+        category = try values.decode(String.self, forKey: .category)
+        action = try values.decode(String.self, forKey: .action)
+        outcome = try values.decode(AuditOutcome.self, forKey: .outcome)
+        metadata = AuditRedactor.redactDecoded(
+            try values.decode([String: RedactedAuditValue].self, forKey: .metadata)
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(id, forKey: .id)
+        try values.encode(occurredAt, forKey: .occurredAt)
+        try values.encode(workspaceID, forKey: .workspaceID)
+        try values.encode(category, forKey: .category)
+        try values.encode(action, forKey: .action)
+        try values.encode(outcome, forKey: .outcome)
+        try values.encode(metadata, forKey: .metadata)
+    }
 }
 
 /// Removes sensitive values before audit events cross a persistence seam.
@@ -135,15 +170,20 @@ public enum AuditRedactor {
 
     /// Produces metadata containing no field marked sensitive or named like a secret.
     public static func redact(_ fields: [AuditField]) -> [String: RedactedAuditValue] {
-        fields.reduce(into: [:]) { result, field in
+        var result: [String: RedactedAuditValue] = [:]
+        var retainedKeys: [String: String] = [:]
+        for field in fields {
             let normalizedKey = field.key.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !normalizedKey.isEmpty else { return }
-            let keyIsSensitive = sensitiveKeyFragments.contains {
-                normalizedKey.localizedCaseInsensitiveContains($0)
+            guard !normalizedKey.isEmpty else { continue }
+            let canonicalKey = normalizedKey.lowercased()
+            if let retainedKey = retainedKeys[canonicalKey] {
+                result[retainedKey] = .redacted
+                continue
             }
-            if field.privacy == .sensitive || keyIsSensitive {
+            retainedKeys[canonicalKey] = normalizedKey
+            if field.privacy == .sensitive || isSensitiveKey(normalizedKey) {
                 result[normalizedKey] = .redacted
-                return
+                continue
             }
             switch field.value {
             case let .string(value):
@@ -154,5 +194,32 @@ public enum AuditRedactor {
                 result[normalizedKey] = .boolean(value)
             }
         }
+        return result
+    }
+
+    /// Returns whether an audit metadata key is reserved for redacted values.
+    public static func isSensitiveKey(_ key: String) -> Bool {
+        sensitiveKeyFragments.contains {
+            key.localizedCaseInsensitiveContains($0)
+        }
+    }
+
+    static func redactDecoded(
+        _ metadata: [String: RedactedAuditValue]
+    ) -> [String: RedactedAuditValue] {
+        let fields = metadata.keys.sorted().map { key -> AuditField in
+            let value = metadata[key] ?? .redacted
+            switch value {
+            case .string(let string):
+                return AuditField(key: key, value: .string(string), privacy: .nonSensitive)
+            case .integer(let integer):
+                return AuditField(key: key, value: .integer(integer), privacy: .nonSensitive)
+            case .boolean(let boolean):
+                return AuditField(key: key, value: .boolean(boolean), privacy: .nonSensitive)
+            case .redacted:
+                return AuditField(key: key, value: .boolean(false), privacy: .sensitive)
+            }
+        }
+        return redact(fields)
     }
 }

@@ -59,6 +59,11 @@ struct WorkspaceOnboardingView: View {
         case .ready(let configuration):
             WorkspaceReadyView(
                 configuration: configuration,
+                configurations: model.configurations,
+                onSelect: { workspaceID in
+                    Task { await model.selectConfiguration(workspaceID) }
+                },
+                onAdd: { model.beginConfiguration() },
                 onOpenNativeFeature: { onOpenNativeFeature(configuration) },
                 onOpenHostedCompatibility: {
                     onOpenHostedCompatibility(configuration)
@@ -135,6 +140,10 @@ struct WorkspaceOnboardingView: View {
                         .accessibilityIdentifier("workspace-validation-error")
                 }
                 HStack {
+                    if !model.configurations.isEmpty {
+                        Button("Cancel") { model.cancelConfiguration() }
+                            .accessibilityIdentifier("cancel-workspace-configuration")
+                    }
                     Spacer()
                     Button("Save workspace") {
                         focusedField = nil
@@ -242,6 +251,9 @@ struct WorkspaceOnboardingView: View {
 
 private struct WorkspaceReadyView: View {
     let configuration: WorkspaceProfile
+    let configurations: [WorkspaceProfile]
+    let onSelect: (WorkspaceID) -> Void
+    let onAdd: () -> Void
     let onOpenNativeFeature: () -> Void
     let onOpenHostedCompatibility: () -> Void
     let onOpenWorkspaceBrowser: () -> Void
@@ -255,6 +267,29 @@ private struct WorkspaceReadyView: View {
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(ThoxTheme.accent)
             Text(configuration.displayName).font(.title3.weight(.semibold))
+            if configurations.count > 1 {
+                Menu {
+                    ForEach(configurations) { profile in
+                        Button {
+                            onSelect(profile.id)
+                        } label: {
+                            Label(
+                                profile.displayName,
+                                systemImage: profile.id == configuration.id
+                                    ? "checkmark.circle.fill"
+                                    : "circle"
+                            )
+                        }
+                        .disabled(profile.id == configuration.id)
+                    }
+                } label: {
+                    Label(
+                        "Switch workspace (\(configurations.count))",
+                        systemImage: "square.stack.3d.up"
+                    )
+                }
+                .accessibilityIdentifier("workspace-switcher")
+            }
             LabeledContent("Data boundary", value: configuration.endpoint.boundary.title)
             LabeledContent("Endpoint", value: configuration.endpoint.url.absoluteString)
             Text(configuration.endpoint.boundary.privacySummary).font(.callout).foregroundStyle(.secondary)
@@ -315,6 +350,9 @@ private struct WorkspaceReadyView: View {
         }
         .accessibilityHint("Opens workspace-scoped retention controls and redacted export")
         .accessibilityIdentifier("open-audit-center")
+        Button("Add workspace") { onAdd() }
+            .accessibilityHint("Creates another isolated workspace and makes it active")
+            .accessibilityIdentifier("add-workspace")
         Button("Remove workspace", role: .destructive) { isRemovalPresented = true }
             .accessibilityIdentifier("remove-workspace")
     }

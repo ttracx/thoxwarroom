@@ -124,6 +124,82 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
         XCTAssertEqual(deletedWorkspaceIDs, [profile.id])
     }
 
+    func testMultipleEncryptedWorkspacesCanBeListedSelectedAndDeletedIndependently() async throws {
+        let vault = OnboardingCredentialVaultStub()
+        let service = EncryptedWorkspaceOnboardingService(
+            defaults: defaults,
+            credentialVault: vault,
+            persistence: persistence,
+            deletionJournal: deletionJournal
+        )
+        let first = try await service.saveConfiguration(
+            from: WorkspaceDraft(
+                name: "Local Research",
+                endpoint: "http://127.0.0.1",
+                boundary: .localMachine
+            )
+        )
+        let second = try await service.saveConfiguration(
+            from: WorkspaceDraft(
+                name: "Private Operations",
+                endpoint: "https://10.0.0.8",
+                providerKind: .hermes,
+                boundary: .privateNetwork
+            )
+        )
+
+        var profiles = try await service.loadConfigurations()
+        let initiallyLoaded = try await service.loadConfiguration()
+        XCTAssertEqual(profiles.map(\.id), [second.id, first.id])
+        XCTAssertEqual(initiallyLoaded?.id, second.id)
+
+        let selected = try await service.selectConfiguration(first.id)
+        XCTAssertEqual(selected.id, first.id)
+        profiles = try await service.loadConfigurations()
+        XCTAssertEqual(profiles.map(\.id), [first.id, second.id])
+
+        try await service.deleteConfiguration()
+
+        profiles = try await service.loadConfigurations()
+        let loadedAfterDeletion = try await service.loadConfiguration()
+        XCTAssertEqual(profiles.map(\.id), [second.id])
+        XCTAssertEqual(loadedAfterDeletion?.id, second.id)
+        let deletedPayload = await persistence.payload(for: first.id)
+        let retainedPayload = await persistence.payload(for: second.id)
+        let deletedCredentialIDs = await vault.deletedIDs
+        XCTAssertNil(deletedPayload)
+        XCTAssertNotNil(retainedPayload)
+        XCTAssertEqual(deletedCredentialIDs, [first.id])
+    }
+
+    func testSelectingUnknownWorkspaceFailsWithoutChangingActiveSelection() async throws {
+        let service = EncryptedWorkspaceOnboardingService(
+            defaults: defaults,
+            persistence: persistence,
+            deletionJournal: deletionJournal
+        )
+        let profile = try await service.saveConfiguration(
+            from: WorkspaceDraft(name: "Local Lab", endpoint: "http://127.0.0.1")
+        )
+
+        do {
+            _ = try await service.selectConfiguration(.make())
+            XCTFail("Expected an unknown workspace selection to fail")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Workspace configuration is unavailable on this device."
+            )
+        }
+
+        let loaded = try await service.loadConfiguration()
+        XCTAssertEqual(loaded?.id, profile.id)
+        XCTAssertEqual(
+            defaults.string(forKey: "workspace.active.v2"),
+            profile.id.rawValue.uuidString.lowercased()
+        )
+    }
+
     func testWorkspaceMetadataIsPreservedWhenCredentialDeletionFails() async throws {
         let vault = OnboardingCredentialVaultStub(deleteFails: true)
         let service = EncryptedWorkspaceOnboardingService(

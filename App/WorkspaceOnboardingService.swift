@@ -5,8 +5,23 @@ import WarRoomCore
 @MainActor
 protocol WorkspaceOnboardingServicing {
     func loadConfiguration() async throws -> WorkspaceProfile?
+    func loadConfigurations() async throws -> [WorkspaceProfile]
+    func selectConfiguration(_ workspaceID: WorkspaceID) async throws -> WorkspaceProfile
     func saveConfiguration(from draft: WorkspaceDraft) async throws -> WorkspaceProfile
     func deleteConfiguration() async throws
+}
+
+extension WorkspaceOnboardingServicing {
+    func loadConfigurations() async throws -> [WorkspaceProfile] {
+        try await loadConfiguration().map { [$0] } ?? []
+    }
+
+    func selectConfiguration(_ workspaceID: WorkspaceID) async throws -> WorkspaceProfile {
+        guard let profile = try await loadConfiguration(), profile.id == workspaceID else {
+            throw WorkspaceOnboardingError.persistence
+        }
+        return profile
+    }
 }
 
 enum WorkspaceOnboardingError: LocalizedError {
@@ -112,28 +127,67 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
     }
 
     func loadConfiguration() async throws -> WorkspaceProfile? {
+        (try await loadConfigurations()).first
+    }
+
+    func loadConfigurations() async throws -> [WorkspaceProfile] {
         do {
             try await resumePendingDeletionIfNeeded()
             let repository = persistence
-            if let activeID = try activeWorkspaceID() {
-                guard let payload = try await repository.loadProfilePayload(for: activeID) else {
-                    throw WorkspaceOnboardingError.persistence
-                }
-                return try decodeAndValidate(payload, expectedID: activeID)
+            var encryptedIDs = try await repository.workspaceIDs()
+            if encryptedIDs.isEmpty, let migrated = try await migrateLegacyProfileIfPresent(
+                using: repository
+            ) {
+                encryptedIDs = [migrated.id]
             }
-
-            let encryptedIDs = try await repository.workspaceIDs()
-            guard encryptedIDs.count <= 1 else { throw WorkspaceOnboardingError.persistence }
-            if let encryptedID = encryptedIDs.first {
+            var profiles: [WorkspaceProfile] = []
+            profiles.reserveCapacity(encryptedIDs.count)
+            for encryptedID in encryptedIDs {
+                try Task.checkCancellation()
                 guard let payload = try await repository.loadProfilePayload(for: encryptedID) else {
                     throw WorkspaceOnboardingError.persistence
                 }
-                let profile = try decodeAndValidate(payload, expectedID: encryptedID)
-                try persistActiveWorkspaceID(encryptedID)
-                return profile
+                profiles.append(try decodeAndValidate(payload, expectedID: encryptedID))
             }
+            guard Set(profiles.map(\.id)).count == profiles.count else {
+                throw WorkspaceOnboardingError.persistence
+            }
+            guard !profiles.isEmpty else { return [] }
+            let selectedID: WorkspaceID
+            if let activeID = try activeWorkspaceID() {
+                guard profiles.contains(where: { $0.id == activeID }) else {
+                    throw WorkspaceOnboardingError.persistence
+                }
+                selectedID = activeID
+            } else {
+                selectedID = profiles.sorted(by: Self.profileSort).first!.id
+                try persistActiveWorkspaceID(selectedID)
+            }
+            return profiles.sorted { left, right in
+                if left.id == selectedID { return true }
+                if right.id == selectedID { return false }
+                return Self.profileSort(left, right)
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as WorkspaceOnboardingError {
+            throw error
+        } catch {
+            throw WorkspaceOnboardingError.persistence
+        }
+    }
 
-            return try await migrateLegacyProfileIfPresent(using: repository)
+    func selectConfiguration(_ workspaceID: WorkspaceID) async throws -> WorkspaceProfile {
+        do {
+            if let pending = try await pendingDeletionEntry() {
+                throw WorkspaceOnboardingError.deletionPending(pending.stage)
+            }
+            guard let payload = try await persistence.loadProfilePayload(for: workspaceID) else {
+                throw WorkspaceOnboardingError.persistence
+            }
+            let profile = try decodeAndValidate(payload, expectedID: workspaceID)
+            try persistActiveWorkspaceID(workspaceID)
+            return profile
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as WorkspaceOnboardingError {
@@ -281,6 +335,7 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
                     current = next
                 case .selectorCleanupPending:
                     try clearLocalSelectors()
+                    try await selectFallbackWorkspaceIfPresent()
                     try await deletionJournal.clear()
                     return
                 }
@@ -299,6 +354,18 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
               defaults.object(forKey: legacyKey) == nil else {
             throw WorkspaceOnboardingError.deletionPending(.selectorCleanupPending)
         }
+    }
+
+    private func selectFallbackWorkspaceIfPresent() async throws {
+        let remaining = try await persistence.workspaceIDs()
+        guard let fallback = remaining.sorted(by: {
+            $0.rawValue.uuidString < $1.rawValue.uuidString
+        }).first else { return }
+        guard let payload = try await persistence.loadProfilePayload(for: fallback) else {
+            throw WorkspaceOnboardingError.deletionPending(.selectorCleanupPending)
+        }
+        _ = try decodeAndValidate(payload, expectedID: fallback)
+        try persistActiveWorkspaceID(fallback)
     }
 
     private func migrateLegacyProfileIfPresent(
@@ -413,6 +480,11 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
         guard defaults.string(forKey: activeWorkspaceKey) == value else {
             throw WorkspaceOnboardingError.persistence
         }
+    }
+
+    private static func profileSort(_ left: WorkspaceProfile, _ right: WorkspaceProfile) -> Bool {
+        if left.updatedAt != right.updatedAt { return left.updatedAt > right.updatedAt }
+        return left.id.rawValue.uuidString < right.id.rawValue.uuidString
     }
 
     private func message(for error: WorkspaceProfileError) -> String {

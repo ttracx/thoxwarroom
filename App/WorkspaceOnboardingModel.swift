@@ -15,6 +15,7 @@ final class WorkspaceOnboardingModel: ObservableObject {
     @Published private(set) var phase: Phase = .loading
     @Published var draft = WorkspaceDraft()
     @Published private(set) var validationMessage: String?
+    @Published private(set) var configurations: [WorkspaceProfile] = []
 
     private let service: any WorkspaceOnboardingServicing
 
@@ -25,21 +26,26 @@ final class WorkspaceOnboardingModel: ObservableObject {
     func load() async {
         phase = .loading
         do {
-            phase = if let configuration = try await service.loadConfiguration() {
-                .ready(configuration)
-            } else {
-                .empty
-            }
+            configurations = try await service.loadConfigurations()
+            phase = configurations.first.map(Phase.ready) ?? .empty
         } catch is CancellationError {
             return
         } catch {
+            configurations = []
             phase = .failed(nonSensitiveMessage(for: error))
         }
     }
 
     func beginConfiguration() {
+        draft = WorkspaceDraft()
         validationMessage = nil
         phase = .editing
+    }
+
+    func cancelConfiguration() {
+        validationMessage = nil
+        draft = WorkspaceDraft()
+        phase = configurations.first.map(Phase.ready) ?? .empty
     }
 
     func selectBoundary(_ boundary: NetworkBoundary) {
@@ -53,7 +59,13 @@ final class WorkspaceOnboardingModel: ObservableObject {
         validationMessage = nil
         phase = .saving
         do {
-            phase = .ready(try await service.saveConfiguration(from: draft))
+            let saved = try await service.saveConfiguration(from: draft)
+            configurations = try await service.loadConfigurations()
+            guard configurations.first?.id == saved.id else {
+                throw WorkspaceOnboardingError.persistence
+            }
+            draft = WorkspaceDraft()
+            phase = .ready(saved)
         } catch is CancellationError {
             phase = .editing
         } catch {
@@ -62,12 +74,32 @@ final class WorkspaceOnboardingModel: ObservableObject {
         }
     }
 
+    func selectConfiguration(_ workspaceID: WorkspaceID) async {
+        guard !phase.isBusy, configurations.contains(where: { $0.id == workspaceID }) else {
+            return
+        }
+        phase = .loading
+        do {
+            let selected = try await service.selectConfiguration(workspaceID)
+            configurations = try await service.loadConfigurations()
+            guard configurations.first?.id == selected.id else {
+                throw WorkspaceOnboardingError.persistence
+            }
+            phase = .ready(selected)
+        } catch is CancellationError {
+            phase = configurations.first.map(Phase.ready) ?? .empty
+        } catch {
+            phase = .failed(nonSensitiveMessage(for: error))
+        }
+    }
+
     func reset() async {
         do {
             try await service.deleteConfiguration()
             draft = WorkspaceDraft()
             validationMessage = nil
-            phase = .empty
+            configurations = try await service.loadConfigurations()
+            phase = configurations.first.map(Phase.ready) ?? .empty
         } catch {
             phase = .failed(nonSensitiveMessage(for: error))
         }
@@ -78,5 +110,14 @@ final class WorkspaceOnboardingModel: ObservableObject {
             return onboardingError.localizedDescription
         }
         return "Workspace configuration is unavailable. No connection was attempted."
+    }
+}
+
+private extension WorkspaceOnboardingModel.Phase {
+    var isBusy: Bool {
+        switch self {
+        case .loading, .saving: true
+        case .empty, .editing, .ready, .failed: false
+        }
     }
 }

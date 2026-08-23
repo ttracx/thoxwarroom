@@ -12,8 +12,8 @@
 #   BUILD_CONFIG       Release | Debug (default: Release)
 #   ARCH               arm64 | x86_64 (default: arm64)
 #   SIGNING_MODE       developer-id | adhoc | unsigned (default: developer-id)
-#   SIGNING_IDENTITY   Developer ID identity selector
-#                      (default: Developer ID Application)
+#   SIGNING_IDENTITY   Optional exact Developer ID certificate name or SHA-1.
+#                      When omitted, resolve the certificate by APPLE_TEAM_ID.
 #   NOTARY_PROFILE     notarytool Keychain profile name (distribution only)
 #   SKIP_NOTARIZE      Set to 1 only for a non-release/local build
 #   SKIP_GEN_ICONS     Set to 1 to keep the existing generated icons
@@ -26,12 +26,12 @@ BUILD_DIR=${BUILD_DIR:-build/macos}
 BUILD_CONFIG=${BUILD_CONFIG:-Release}
 ARCH=${ARCH:-arm64}
 SIGNING_MODE=${SIGNING_MODE:-developer-id}
-SIGNING_IDENTITY=${SIGNING_IDENTITY:-Developer ID Application}
 SKIP_NOTARIZE=${SKIP_NOTARIZE:-0}
 PROJECT_NAME="ThoxWarRoom"
 SCHEME="ThoxWarRoom macOS"
 APP_NAME="ThoxWarRoom.app"
 TEAM_ID=${APPLE_TEAM_ID:-DVJ6Z5343U}
+SIGNING_IDENTITY=${SIGNING_IDENTITY:-}
 BUNDLE_ID="ai.thox.warroom"
 
 fail() {
@@ -54,8 +54,19 @@ if [ "$SIGNING_MODE" != "developer-id" ] && [ "$SKIP_NOTARIZE" != "1" ]; then
 fi
 
 if [ "$SIGNING_MODE" = "developer-id" ]; then
-    if ! security find-identity -v -p codesigning | grep -Eq "Developer ID Application:.*\\($TEAM_ID\\)"; then
+    IDENTITY_LIST=$(security find-identity -v -p codesigning)
+    TEAM_IDENTITY_SHA=$(printf '%s\n' "$IDENTITY_LIST" | awk -v team="$TEAM_ID" '
+        index($0, "Developer ID Application:") && index($0, "(" team ")") { print $2; exit }
+    ')
+    if [ -z "$TEAM_IDENTITY_SHA" ]; then
         fail "no Developer ID Application signing identity for team $TEAM_ID is available in the Keychain"
+    fi
+    if [ -n "$SIGNING_IDENTITY" ]; then
+        if ! printf '%s\n' "$IDENTITY_LIST" | grep -F "$SIGNING_IDENTITY" | grep -Fq "($TEAM_ID)"; then
+            fail "SIGNING_IDENTITY does not resolve to a Developer ID Application certificate for team $TEAM_ID"
+        fi
+    else
+        SIGNING_IDENTITY=$TEAM_IDENTITY_SHA
     fi
     if [ "$SKIP_NOTARIZE" = "0" ] && [ -z "${NOTARY_PROFILE:-}" ]; then
         fail "NOTARY_PROFILE is required for a notarized distribution build; use a notarytool Keychain profile or explicitly set SKIP_NOTARIZE=1 for local validation"

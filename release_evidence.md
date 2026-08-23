@@ -32,4 +32,3 @@ No API private key or bearer token is stored in this repository or this evidence
 - Remaining gate: install the THOX Developer ID Application identity, configure a Keychain notary profile, run the release mode, and retain final `codesign`, `stapler`, `spctl`, mounted-app, checksum, and clean-device evidence.
 
 The unsigned DMG is build evidence only and is not a distributable release.
-

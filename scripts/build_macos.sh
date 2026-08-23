@@ -73,6 +73,9 @@ if [ "$SIGNING_MODE" = "developer-id" ]; then
     fi
 fi
 
+echo "==> Scanning tracked source for secret material"
+python3 scripts/scan_source_secrets.py
+
 echo "==> Regenerating Xcode project"
 XCODEGEN_BIN=$(./scripts/bootstrap_xcodegen.sh)
 echo "==> Using $($XCODEGEN_BIN --version) from the repository tool directory"

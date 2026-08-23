@@ -52,6 +52,9 @@ if [ -n "${ASC_API_KEY_ID:-}${ASC_API_ISSUER_ID:-}${ASC_API_KEY_P8:-}" ]; then
     )
 fi
 
+echo "==> Scanning tracked source for secret material"
+python3 scripts/scan_source_secrets.py
+
 echo "==> Regenerating Xcode project"
 XCODEGEN_BIN=$(./scripts/bootstrap_xcodegen.sh)
 echo "==> Using $($XCODEGEN_BIN --version) from the repository tool directory"

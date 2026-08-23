@@ -4,7 +4,16 @@ import XCTest
 final class ProtocolSeamTests: XCTestCase {
     func testProviderRequestAllowsOnlyRelativePaths() throws {
         XCTAssertNoThrow(try ProviderRequest(method: .get, relativePath: "/v1/models"))
-        for path in ["v1/models", "//other-host/path", "/v1/../admin", "/v1?q=secret", "/v1#secret"] {
+        for path in [
+            "v1/models",
+            "//other-host/path",
+            "/v1/../admin",
+            "/v1/%2e%2e/admin",
+            "/v1/%2F%2Fevil.example/path",
+            "/v1\\..\\admin",
+            "/v1?q=secret",
+            "/v1#secret",
+        ] {
             XCTAssertThrowsError(try ProviderRequest(method: .get, relativePath: path)) { error in
                 XCTAssertEqual(error as? ProviderRequestError, .invalidRelativePath)
             }

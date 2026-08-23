@@ -47,9 +47,14 @@ public struct ProviderRequest: Equatable, Sendable {
     public let body: Data?
 
     public init(method: Method, relativePath: String, body: Data? = nil) throws {
+        let decodedPath = relativePath.removingPercentEncoding ?? relativePath
         guard relativePath.hasPrefix("/"),
               !relativePath.hasPrefix("//"),
-              !relativePath.split(separator: "/").contains(".."),
+              !relativePath.contains("\\"),
+              !decodedPath.contains("\\"),
+              !decodedPath.hasPrefix("//"),
+              !decodedPath.dropFirst().contains("//"),
+              !decodedPath.split(separator: "/", omittingEmptySubsequences: false).contains(".."),
               !relativePath.contains("?") && !relativePath.contains("#") else {
             throw ProviderRequestError.invalidRelativePath
         }

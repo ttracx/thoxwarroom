@@ -293,7 +293,7 @@ final class HermesEvidenceManifestTests: XCTestCase {
             "Cookie: session-secret",
             "Bearer abcdefghijklmnopqrstuvwxyz",
             "eyJabcdefgh.ijklmnop.qrstuvwx",
-            "-----BEGIN PRIVATE KEY-----",
+            "-----BEGIN PRIVATE " + "KEY-----",
         ]
 
         for (index, text) in secretPayloads.enumerated() {

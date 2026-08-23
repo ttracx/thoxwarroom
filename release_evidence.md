@@ -2,17 +2,17 @@
 
 Evidence is recorded per platform and must not be generalized across lanes.
 
-## 2026-08-23 native provider integration and signed iOS export
+## 2026-08-23 native provider and War Room integration with signed iOS export
 
-- Source: local `main` through `88c6dd1` plus documentation-only working changes.
-- Secret-free CI: passed deterministic XcodeGen/assets, 77 standalone package tests with warnings as errors, 43 integrated macOS app tests, and generic iOS Simulator app/test build.
+- Source: local `main` through `a27439f` plus documentation-only working changes.
+- Secret-free CI: passed deterministic XcodeGen/assets, 77 standalone package tests with warnings as errors, 58 integrated macOS app tests, and generic iOS Simulator app/test build.
 - GitHub Actions run `32641564386` for `fcd62e9` failed before every step; its only job has zero steps and the exact annotation `The job was not started because your account is locked due to a billing issue.` This is an account/remote-CI blocker, not source-test evidence.
-- Native slice: explicit Open WebUI/Hermes selection; provider-specific endpoint policy; Open WebUI credential/model catalog; credential-gated read-only buffered Hermes run review; linked read-only Mesh adapter.
+- Native slice: explicit Open WebUI/Hermes/MeshStack selection; provider-specific endpoint policy; Open WebUI credential/model catalog; credential-gated read-only buffered Hermes run review; credential- and canonical-MeshID-gated read-only War Room dashboard with partial results, freshness, and provenance.
 - Credential lifecycle: workspace-scoped non-synchronizing Keychain items; workspace deletion removes the credential before metadata and preserves metadata when secure deletion fails.
 - iOS archive/export: succeeded with Xcode 26.5 and XcodeGen 2.46.0.
 - IPA signature: `Apple Distribution: THOX AI LLC (DVJ6Z5343U)`; bundle `ai.thox.warroom`; team `DVJ6Z5343U`.
 - Provisioning: `iOS Team Store Provisioning Profile: ai.thox.warroom`.
-- IPA SHA-256: `9de7459f744606182929f323375f3149b7d605e94e2fbca95106f6f49cf16655`.
+- IPA SHA-256: `e47e670af9f65a2c354111f0a641854497205012f61b191ec784f0529393e6db`.
 - App Store Connect lookup authenticated with the externally supplied API key and returned zero app records for bundle `ai.thox.warroom`.
 - Upload: not retried because no App Store Connect app record exists; an upload cannot attach to TestFlight until the website-only record is created.
 - Remaining iOS gate: create the app record, upload, wait for processing, install from TestFlight on a physical iPhone, and complete authenticated/relaunch checks.

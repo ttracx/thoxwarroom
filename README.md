@@ -4,7 +4,7 @@
 
 ThoxWarRoom now starts with native workspace onboarding. Users explicitly choose a local-device, private-network, or hosted boundary before any provider can be opened; hosted transfer requires separate consent. Endpoint/profile metadata is stored locally without credentials. The former Open WebUI shell remains as a compatibility surface only for an explicitly authorized, exact `https://webui.thox.ai` profile.
 
-> **Current scope:** v4.2 has the clean-room shared core, native provider selection, Open WebUI discovery/credential/model-catalog UI, and a credential-gated read-only Hermes run review. A typed read-only Mesh adapter is linked but has no dashboard yet. Native chat, live Hermes streaming/actions, encrypted history, durable audit storage, and completed distribution remain unfinished. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [current service contracts](docs/current_service_contracts.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md).
+> **Current scope:** v4.2 has the clean-room shared core, native provider selection, Open WebUI discovery/credential/model-catalog UI, a credential-gated read-only Hermes run review, and a credential-gated read-only MeshStack War Room dashboard. Native chat, live Hermes streaming/actions, encrypted history, durable audit storage, live private-service verification, and completed distribution remain unfinished. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [current service contracts](docs/current_service_contracts.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md).
 
 Current build, signing, upload, and blocker evidence is recorded in [release_evidence.md](release_evidence.md).
 
@@ -96,6 +96,7 @@ The app opens native workspace onboarding. Only an explicitly consented exact `h
 - **Hosted consent and exact-origin gate** — hosted configuration requires affirmative data-transfer consent. The compatibility WebView appears only for the credential-free, default-port, empty-path `https://webui.thox.ai` origin.
 - **Workspace-scoped credentials** — onboarding stores only the validated `WorkspaceProfile` in local preferences. Open WebUI and Hermes credentials are rejected in URLs, entered through privacy-sensitive native fields, and stored as non-synchronizing `WhenUnlockedThisDeviceOnly` Keychain items. Workspace removal deletes the scoped Keychain item before removing profile metadata and preserves metadata if secure deletion fails.
 - **Native provider surfaces** — Open WebUI exposes bounded public discovery and a protected model catalog; Hermes exposes credential-gated read-only run status and buffered events. Neither surface claims native chat, live streaming, or audited approval controls.
+- **Read-only War Room** — MeshStack workspaces require a canonical operator-supplied mesh UUID and Keychain credential before loading bounded devices, topology, and events. The dashboard shows provenance, freshness, empty/offline/error states, and partial results; it exposes no pairing, deletion, token creation, or control-plane write.
 - **Persistent session with explicit purge** — `WKWebViewConfiguration.websiteDataStore = .default()` keeps login data across relaunch. **Sign Out** requires confirmation, clears all WebKit website data in the app container, reports clearing/success/failure state, and reloads the canonical URL after success. This clears local session material; server-side token revocation is not yet verified.
 - **Strict in-app policy** — only credential-free `https://webui.thox.ai` URLs on the default HTTPS port are allowed in the WebView. Host suffixes, HTTP, custom schemes, embedded credentials, and non-default ports are never allowed in-app.
 - **Safe external navigation** — credential-free, default-port HTTPS links open in the system browser only for an explicit `.linkActivated` action. Automatic redirects and script-driven off-domain navigations are cancelled. Allowed `target=_blank` links stay in the current WebView.
@@ -138,7 +139,7 @@ xcodebuild \
     test
 ```
 
-120 current tests cover 77 standalone package cases plus 43 integrated macOS app cases, including:
+135 current tests cover 77 standalone package cases plus 58 integrated macOS app cases, including:
 
 - Base URL is `https://webui.thox.ai`
 - User-activated safe HTTPS off-domain URLs → external

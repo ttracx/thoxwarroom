@@ -2,6 +2,17 @@
 
 Evidence is recorded per platform and must not be generalized across lanes.
 
+## 2026-08-23 encrypted workspace-profile integration
+
+- Source commit: `99c802c` on local `main`, based on Core persistence seams `2263542`/`0c5efc5` and Apple encrypted-store foundation `a28af22`.
+- Workspace profile payloads are AES-256-GCM encrypted with HKDF-SHA256 purpose keys; associated data binds workspace, collection, record, algorithm, key reference, and canonical timestamps.
+- Per-workspace 256-bit master keys are non-synchronizing `WhenUnlockedThisDeviceOnly` Keychain items. Normal sealing cannot create a missing key over existing ciphertext.
+- Ciphertext persistence uses bounded reads, atomic writes, private permissions, backup exclusion, symlink rejection, and complete iOS file protection. The iOS target also declares `com.apple.developer.default-data-protection = NSFileProtectionComplete`.
+- App integration stores only provider ID and canonical validated profile fields, reconstructs capabilities from current trusted code, and revalidates endpoint/boundary/provider policy after decryption.
+- Legacy plaintext preferences are removed only after encrypted write/read-back and active-selector persistence succeed. Credential deletion precedes profile cryptographic erasure, and interrupted ciphertext cleanup is retryable from the retained selector.
+- Secret-free CI passed deterministic XcodeGen/assets/privacy checks, 106 standalone package tests with warnings as errors, 61 integrated macOS app tests, and the generic iOS Simulator app/test build.
+- This is source, local-test, and simulator-build evidence. Physical locked-device behavior, rollback anchoring, HMAC-obscured routing indexes, encrypted chat/document history, a concrete durable audit ledger, and a fresh signed/TestFlight artifact remain separate gates.
+
 ## 2026-08-23 Apple privacy manifest validation
 
 - Source release commit: `1056d60` on `main`.

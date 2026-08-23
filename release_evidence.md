@@ -1,5 +1,14 @@
 # Release Evidence
 
+## 2026-08-23 app-wired streaming and rollback-anchor wave
+
+- Source commits: `1924f48` (incremental URLSession Hermes transport), `7f75424` (app-wired live read-only run review), `f07e037` (device-only Keychain audit head anchor), and `c79c3f5` (pinned XcodeGen release scripts).
+- Hermes live review now concurrently loads run status and incremental SSE events. The Apple transport uses an ephemeral cookie-free/cache-free session, exact-origin redirect enforcement, bounded queued delivery, send-time bearer validation, and task/session cancellation. The app retains the newest 200 verified events and maps explicit complete/error/cancel/terminal states.
+- The encrypted audit ledger now stores a fixed-width version/count/head-digest anchor as `WhenUnlockedThisDeviceOnly`. Existing ciphertext with a missing/invalid anchor, rollback, tail truncation, or divergent prefix fails closed; authenticated ciphertext ahead after an interrupted anchor update recovers forward. Cross-instance/process CAS, retention/export, and mutation wiring remain open.
+- Validation: 136/136 package tests passed with warnings-as-errors; 63/63 integrated macOS app tests passed; deterministic XcodeGen/assets/privacy checks and the generic iOS Simulator test build passed through `./scripts/ci_unsigned.sh`.
+- Both release scripts bootstrap repository-pinned checksum-verified XcodeGen 2.46.0. A credential-free unsigned/non-notarized macOS DMG packaging smoke test passed; this is not Developer ID or Gatekeeper release evidence.
+- This source wave is newer than the signed IPA below. A fresh distribution-signed archive/export and upload retry are required before any TestFlight claim.
+
 ## 2026-08-23 fresh main archive and TestFlight retry
 
 - Source: pushed `main` at `7cccff895f2cf1b8e327f7f149654d83352120d1`.

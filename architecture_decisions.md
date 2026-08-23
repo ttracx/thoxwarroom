@@ -58,15 +58,15 @@
 - **Local-first impact:** localhost and private providers use the same explicit transport boundary without a hosted fallback.
 - **Compliance impact:** credential storage and egress controls are testable primitives; they do not establish compliance or prove a deployed endpoint is safe.
 - **Final choice:** `WarRoomAppleInfrastructure` supplies the concrete Apple adapters while provider packages remain transport-neutral.
-- **Follow-up:** add resolved-address enforcement, introduce a streaming seam, and complete real private-endpoint/certificate tests.
+- **Follow-up:** add resolved-address enforcement and complete real private-endpoint/certificate tests; URLSession streaming now exists for Hermes but has no live-provider or reconnect/cursor evidence.
 
 ## ADR-006: Route native surfaces by explicit provider capability
 
-- **Decision:** Persist an explicit provider descriptor in each workspace profile and route only to native surfaces supported by that descriptor. Open WebUI exposes discovery and model catalog; Hermes exposes credential-gated read-only buffered run review; MeshStack exposes a credential- and canonical-MeshID-gated read-only status dashboard.
+- **Decision:** Persist an explicit provider descriptor in each workspace profile and route only to native surfaces supported by that descriptor. Open WebUI exposes discovery and model catalog; Hermes exposes credential-gated read-only live run review; MeshStack exposes a credential- and canonical-MeshID-gated read-only status dashboard.
 - **Context:** A generic provider identifier could route incompatible credentials and endpoints into the wrong client, while advertising unimplemented chat or mutation behavior would create unsafe product claims.
 - **Options considered:** one generic provider screen; infer provider from endpoint ports; explicit provider selection plus defensive capability gates.
 - **Tradeoffs:** provider-specific endpoint policies and UI increase test cases and require legacy-profile mapping, but prevent endpoint heuristics from becoming authorization decisions.
-- **Security impact:** provider secrets remain workspace-scoped; Hermes loads one required credential per status/event snapshot; workspace removal deletes the Keychain item before metadata; no Hermes mutation control is exposed without durable audit and replay controls.
+- **Security impact:** provider secrets remain workspace-scoped; Hermes validates the credential at send time and uses ephemeral exact-origin streaming transport; workspace removal deletes the Keychain item before metadata; no Hermes mutation control is exposed without durable audit and replay controls.
 - **Local-first impact:** loopback and private endpoints remain the defaults for every provider, with hosted transfer requiring explicit consent.
 - **Compliance impact:** the selected provider, boundary, and advertised capability are reviewable control inputs. No compliance certification is claimed.
 - **Final choice:** explicit provider selection, provider-specific validated ports, capability-gated routing, and read-only-first native delivery.
@@ -101,12 +101,12 @@
 - **Decision:** Implement `DurableAuditEventStore` on Apple platforms as one workspace-scoped AES-256-GCM atomic ledger with canonical event revalidation, actor-serialized appends, ordered SHA-256 entry chaining, and digest-bound cursors. Do not enable Hermes or other mutations merely because this persistence seam exists.
 - **Context:** Profiles are encrypted, but high-impact workflows also require durable redacted evidence. The current atomic encrypted file store can deliver a bounded local slice without adding SQLite or a cloud dependency.
 - **Options considered:** retain in-memory recording; add SQLite and a transactional Keychain anchor immediately; build a bounded encrypted ledger now and keep rollback/policy gaps explicit.
-- **Tradeoffs:** the bounded ledger provides real ciphertext-only durability and detects internal modification/reordering/substitution, but append is O(n), capacity is 10,000 entries/16 MiB, separate instances can race, and a valid older whole ledger or tail truncation is not detectable.
-- **Security impact:** persisted events are revalidated across the decode boundary; workspace/key/AAD isolation, idempotent IDs, bounds, and redacted errors fail closed. This is not a tamper-evident external anchor.
+- **Tradeoffs:** the bounded ledger provides real ciphertext-only durability and detects internal modification/reordering/substitution. A device-only Keychain version/count/head-digest anchor now rejects valid older whole ledgers and tail truncation, but append remains O(n), capacity is 10,000 entries/16 MiB, and separate instances/processes can race.
+- **Security impact:** persisted events are revalidated across the decode boundary; workspace/key/AAD isolation, idempotent IDs, bounds, redacted errors, and rollback anchoring fail closed. The anchor is local device state, not an external tamper-evident or non-repudiation service.
 - **Local-first impact:** audit content and keys remain in the app container and device-only Keychain with no telemetry or hosted dependency.
 - **Compliance impact:** durable local evidence is a reviewable control primitive, not a compliance or non-repudiation claim.
-- **Final choice:** keep the ledger available as an infrastructure seam while mutation UI stays disabled.
-- **Follow-up:** add a Keychain monotonic head anchor with crash recovery, cross-instance CAS/file locking, retention/export policy, audited-operation coordination, and app composition wiring.
+- **Final choice:** keep the rollback-anchored ledger available as an infrastructure seam while mutation UI stays disabled. Ciphertext is committed before the anchor advances; authenticated ciphertext-ahead state recovers forward after interruption.
+- **Follow-up:** add cross-instance CAS/file locking, retention/export policy, audited-operation coordination, and app composition wiring.
 
 ## ADR-010: Contract evidence gates native chat capability
 

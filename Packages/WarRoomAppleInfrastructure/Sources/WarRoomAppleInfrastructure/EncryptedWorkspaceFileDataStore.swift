@@ -38,22 +38,25 @@ public actor EncryptedWorkspaceFileDataStore: EncryptedWorkspaceDataStore {
 
     /// Creates a store in the current app container's Application Support directory.
     public init() throws {
-        let fileManager = FileManager.default
-        guard let applicationSupport = fileManager.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first else {
-            throw EncryptedWorkspaceFileStoreError.applicationSupportUnavailable
-        }
-        let root = applicationSupport
-            .appendingPathComponent("ai.thox.warroom", isDirectory: true)
-            .appendingPathComponent("workspaces", isDirectory: true)
+        let root = try Self.defaultRootURL()
         let system = SystemAtomicWorkspaceFileSystem()
         try system.ensurePrivateDirectory(at: root)
         rootURL = root.standardizedFileURL
         fileSystem = system
         encoder = Self.makeEncoder()
         decoder = Self.makeDecoder()
+    }
+
+    static func defaultRootURL() throws -> URL {
+        guard let applicationSupport = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else {
+            throw EncryptedWorkspaceFileStoreError.applicationSupportUnavailable
+        }
+        return applicationSupport
+            .appendingPathComponent("ai.thox.warroom", isDirectory: true)
+            .appendingPathComponent("workspaces", isDirectory: true)
     }
 
     init(rootURL: URL, fileSystem: any AtomicWorkspaceFileSystem) throws {
@@ -330,14 +333,18 @@ struct SystemAtomicWorkspaceFileSystem: AtomicWorkspaceFileSystem, @unchecked Se
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
-        guard standardized.resolvingSymlinksInPath() == standardized else {
+        // Recreate the URL after creation. Foundation can retain pre-creation path
+        // resolution state for a URL whose final component did not yet exist.
+        let created = URL(fileURLWithPath: standardized.path, isDirectory: true)
+            .standardizedFileURL
+        guard created.resolvingSymlinksInPath() == created else {
             throw EncryptedWorkspaceFileStoreError.symbolicLinkEncountered
         }
         try fileManager.setAttributes(
             [.posixPermissions: 0o700],
-            ofItemAtPath: standardized.path
+            ofItemAtPath: created.path
         )
-        try excludeFromBackup(standardized)
+        try excludeFromBackup(created)
     }
 
     func directoryEntries(at url: URL) throws -> [URL] {

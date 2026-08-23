@@ -452,6 +452,116 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
         }
     }
 
+    func testConcurrentAppendsAcrossStoreInstancesPreserveEveryEvent() async throws {
+        let lockRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "thox-audit-race-\(UUID().uuidString.lowercased())"
+        )
+        defer { try? FileManager.default.removeItem(at: lockRoot) }
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let firstStore = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors,
+            lockCoordinator: try AuditWorkspaceLockCoordinator(rootURL: lockRoot)
+        )
+        let secondStore = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors,
+            lockCoordinator: try AuditWorkspaceLockCoordinator(rootURL: lockRoot)
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        let expectedCount = 40
+
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for index in 0..<expectedCount {
+                let event = try event(
+                    id: String(format: "30000000-0000-0000-0000-%012d", index),
+                    workspaceID: workspaceID,
+                    occurredAt: Double(index),
+                    action: "concurrent-\(index)"
+                )
+                group.addTask {
+                    let target = index.isMultiple(of: 2) ? firstStore : secondStore
+                    try await target.append(event)
+                }
+            }
+            try await group.waitForAll()
+        }
+
+        let page = try await firstStore.events(matching: AuditEventQuery(
+            workspaceID: workspaceID,
+            limit: try AuditEventPageLimit(rawValue: expectedCount)
+        ))
+        XCTAssertEqual(page.events.count, expectedCount)
+        XCTAssertEqual(Set(page.events.map(\.event.id)).count, expectedCount)
+        let storedAnchor = await anchors.storedAnchor(for: workspaceID)
+        let anchor = try XCTUnwrap(storedAnchor)
+        XCTAssertEqual(anchor.entryCount, UInt64(expectedCount))
+    }
+
+    func testLockContentionFailsStoreClosedBeforeLedgerOrAnchorMutation() async throws {
+        let lockRoot = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "thox-audit-lock-failure-\(UUID().uuidString.lowercased())"
+        )
+        defer { try? FileManager.default.removeItem(at: lockRoot) }
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        let holderCoordinator = try AuditWorkspaceLockCoordinator(
+            rootURL: lockRoot,
+            useProcessRegistry: false
+        )
+        let storeCoordinator = try AuditWorkspaceLockCoordinator(
+            rootURL: lockRoot,
+            policy: AuditWorkspaceLockPolicy(
+                acquisitionTimeoutNanoseconds: 40_000_000,
+                pollIntervalNanoseconds: 2_000_000
+            ),
+            useProcessRegistry: false
+        )
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors,
+            lockCoordinator: storeCoordinator
+        )
+        let entered = expectation(description: "external owner acquired lock")
+        let holder = Task {
+            try await holderCoordinator.withLock(for: workspaceID) {
+                entered.fulfill()
+                try await Task.sleep(nanoseconds: 200_000_000)
+            }
+        }
+        await fulfillment(of: [entered], timeout: 1)
+
+        do {
+            try await store.append(try event(
+                id: "10000000-0000-0000-0000-000000000001",
+                workspaceID: workspaceID,
+                occurredAt: 100,
+                action: "must-not-start"
+            ))
+            XCTFail("Expected fail-closed store lock timeout")
+        } catch {
+            XCTAssertEqual(error as? EncryptedDurableAuditStoreError, .lockUnavailable)
+            XCTAssertEqual(String(reflecting: error), "EncryptedDurableAuditStoreError(<redacted>)")
+        }
+        let storedRecord = await records.storedRecord(
+            id: EncryptedDurableAuditEventStore.recordID,
+            workspaceID: workspaceID
+        )
+        let storedAnchor = await anchors.storedAnchor(for: workspaceID)
+        XCTAssertNil(storedRecord)
+        XCTAssertNil(storedAnchor)
+        try await holder.value
+    }
+
     private func makeStore() -> (
         EncryptedDurableAuditEventStore,
         AuditMemoryEncryptedRecordStore,

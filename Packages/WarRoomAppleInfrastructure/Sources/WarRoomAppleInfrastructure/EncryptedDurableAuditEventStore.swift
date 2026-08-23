@@ -11,6 +11,7 @@ public enum EncryptedDurableAuditStoreError: Error, Equatable, Sendable,
     case corruptLedger
     case invalidCursor
     case ledgerFull(limit: Int)
+    case lockUnavailable
     case rollbackDetected
     case storageUnavailable
 
@@ -24,8 +25,8 @@ public enum EncryptedDurableAuditStoreError: Error, Equatable, Sendable,
 /// linked by SHA-256 digests so decoding rejects internal deletion, reordering, or
 /// substitution. A separately protected Keychain head commits the entry count and
 /// chain digest to detect replacement by an older, otherwise valid ciphertext.
-/// Actor isolation serializes one store instance; this type does not claim a
-/// multi-process or cross-instance compare-and-swap boundary.
+/// A process-wide workspace lock plus an app-container advisory file lock serializes
+/// the complete record-and-anchor transaction across store instances and processes.
 public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
     static let schemaVersion = 1
     static let maximumEntries = 10_000
@@ -37,14 +38,23 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
     private let dataStore: any EncryptedWorkspaceDataStore
     private let codec: EncryptedWorkspaceRecordCodec
     private let anchorVault: any AuditHeadAnchorProviding
+    private let lockCoordinator: AuditWorkspaceLockCoordinator
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
     /// Creates an audit store in the app container backed by device-only Keychain keys.
     public init() throws {
-        dataStore = try EncryptedWorkspaceFileDataStore()
+        let recordRoot = try EncryptedWorkspaceFileDataStore.defaultRootURL()
+        dataStore = try EncryptedWorkspaceFileDataStore(
+            rootURL: recordRoot,
+            fileSystem: SystemAtomicWorkspaceFileSystem()
+        )
         codec = EncryptedWorkspaceRecordCodec()
         anchorVault = KeychainAuditHeadAnchorVault()
+        lockCoordinator = try AuditWorkspaceLockCoordinator(
+            rootURL: recordRoot.deletingLastPathComponent()
+                .appendingPathComponent("audit-locks", isDirectory: true)
+        )
         encoder = Self.makeEncoder()
         decoder = Self.makeDecoder()
     }
@@ -52,16 +62,32 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
     init(
         dataStore: any EncryptedWorkspaceDataStore,
         codec: EncryptedWorkspaceRecordCodec,
-        anchorVault: any AuditHeadAnchorProviding
+        anchorVault: any AuditHeadAnchorProviding,
+        lockCoordinator: AuditWorkspaceLockCoordinator = .processLocalForTesting()
     ) {
         self.dataStore = dataStore
         self.codec = codec
         self.anchorVault = anchorVault
+        self.lockCoordinator = lockCoordinator
         encoder = Self.makeEncoder()
         decoder = Self.makeDecoder()
     }
 
     public func append(_ event: PersistableAuditEvent) async throws {
+        do {
+            try await lockCoordinator.withLock(for: event.event.workspaceID) { [self] in
+                try await appendWhileLocked(event)
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as EncryptedDurableAuditStoreError {
+            throw error
+        } catch {
+            throw EncryptedDurableAuditStoreError.lockUnavailable
+        }
+    }
+
+    private func appendWhileLocked(_ event: PersistableAuditEvent) async throws {
         try Task.checkCancellation()
         // Revalidation is intentional even though callers hold a validated wrapper.
         let validated: PersistableAuditEvent
@@ -169,6 +195,21 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
     }
 
     public func events(matching query: AuditEventQuery) async throws -> AuditEventPage {
+        do {
+            return try await lockCoordinator.withLock(for: query.workspaceID) { [self] in
+                try await eventsWhileLocked(matching: query)
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as EncryptedDurableAuditStoreError {
+            throw error
+        } catch {
+            throw EncryptedDurableAuditStoreError.lockUnavailable
+        }
+    }
+
+    private func eventsWhileLocked(matching query: AuditEventQuery) async throws
+        -> AuditEventPage {
         try Task.checkCancellation()
         let record: EncryptedWorkspaceRecord?
         do {

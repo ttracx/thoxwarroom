@@ -1,5 +1,15 @@
 # Release Evidence
 
+## 2026-08-23 post-streaming main archive and TestFlight retry
+
+- Source: pushed `main` at `42004f6` with the concrete Hermes URLSession stream, app live review, rollback-anchored audit ledger, pinned release tooling, and reconciled documentation.
+- Fresh archive/export: `build/ios-42004f6/ThoxWarRoom.xcarchive` and `build/ios-42004f6/export/ThoxWarRoom.ipa`.
+- Signature: `Apple Distribution: THOX AI LLC (DVJ6Z5343U)`; bundle `ai.thox.warroom`; TeamIdentifier `DVJ6Z5343U`; strict deep verification passed.
+- Provisioning: `iOS Team Store Provisioning Profile: ai.thox.warroom`; application identifier `DVJ6Z5343U.ai.thox.warroom`; `beta-reports-active=true`; `get-task-allow=false`.
+- IPA SHA-256: `5f4cfa753ce5e397393fb8efb02b17363b5ce754d832bbb1d12a2dafb2ed8110`.
+- TestFlight upload was attempted with the externally supplied THOX AI LLC App Store Connect API key and rejected before transfer: `Cannot determine the Apple ID from Bundle ID 'ai.thox.warroom' and platform 'IOS'. (19)` followed by `ExitFailure (31)`.
+- Remaining Apple-side gate: authenticate an App Store Connect owner/admin website session, create the iOS app record for `ai.thox.warroom`, then retry this exact IPA upload and verify processing/install.
+
 ## 2026-08-23 app-wired streaming and rollback-anchor wave
 
 - Source commits: `1924f48` (incremental URLSession Hermes transport), `7f75424` (app-wired live read-only run review), `f07e037` (device-only Keychain audit head anchor), and `c79c3f5` (pinned XcodeGen release scripts).

@@ -91,7 +91,6 @@ xcodebuild \
     -archivePath "$BUILD_DIR/$PROJECT_NAME.xcarchive" \
     CODE_SIGN_STYLE=Automatic \
     DEVELOPMENT_TEAM="$TEAM_ID" \
-    CODE_SIGN_IDENTITY="Apple Distribution" \
     -allowProvisioningUpdates \
     "${XCODE_AUTH_ARGS[@]}" \
     clean archive | tee "$BUILD_DIR/archive.log" >/dev/null

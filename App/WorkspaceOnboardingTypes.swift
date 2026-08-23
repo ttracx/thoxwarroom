@@ -127,10 +127,15 @@ extension NetworkBoundary {
 }
 
 extension WorkspaceProfile {
+    /// Kept off until THOX has verified the hosted service's retention,
+    /// embedded-resource domains, and App Store privacy declarations.
+    static let isHostedCompatibilityEnabled = false
+
     /// The legacy WKWebView has its own exact-origin policy and may only be
     /// entered after this independently validated hosted profile is selected.
     var supportsHostedCompatibilityOrigin: Bool {
-        WorkspaceProviderKind(providerID: provider.id) == .openWebUI &&
+        Self.isHostedCompatibilityEnabled &&
+            WorkspaceProviderKind(providerID: provider.id) == .openWebUI &&
             endpoint.boundary == .hosted &&
             endpoint.url.scheme?.lowercased() == "https" &&
             endpoint.url.host?.lowercased() == "webui.thox.ai" &&

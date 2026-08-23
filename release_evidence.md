@@ -2,9 +2,19 @@
 
 Evidence is recorded per platform and must not be generalized across lanes.
 
+## 2026-08-23 Apple privacy manifest validation
+
+- `App/PrivacyInfo.xcprivacy` is a valid property list bundled into both generated app targets.
+- Current declarations: tracking disabled, no tracking domains, no developer/SDK data collection, and `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1` for app-only workspace profile preferences.
+- Source audit found direct required-reason API usage only through `UserDefaults`; credentials remain in non-synchronizing device-only Keychain storage and are not declared as collected by THOX.
+- Independent review found that the legacy persistent `webui.thox.ai` WebView could not support the empty collection declaration without verified server-retention and embedded-domain evidence. Its user-facing route is now feature-disabled; native operator-configured provider surfaces remain available.
+- Secret-free CI validates the source manifest and its Apple-required placement at the iOS app-bundle root and macOS `Contents/Resources` path.
+- Full local CI passed: 77 standalone package tests, 58 integrated macOS app tests, and the generic iOS Simulator app/test build.
+- This evidence does not replace App Store Connect privacy answers, an in-app/privacy-policy URL, review approval, TestFlight processing, or a fresh review if SDKs, telemetry, storage, or data ownership change.
+
 ## 2026-08-23 native provider and War Room integration with signed iOS export
 
-- Source: local `main` through `a27439f` plus documentation-only working changes.
+- Source: local `main` through `d6e3ba4` plus the reviewed privacy-manifest release changes documented above.
 - Secret-free CI: passed deterministic XcodeGen/assets, 77 standalone package tests with warnings as errors, 58 integrated macOS app tests, and generic iOS Simulator app/test build.
 - GitHub Actions run `32641564386` for `fcd62e9` failed before every step; its only job has zero steps and the exact annotation `The job was not started because your account is locked due to a billing issue.` This is an account/remote-CI blocker, not source-test evidence.
 - Native slice: explicit Open WebUI/Hermes/MeshStack selection; provider-specific endpoint policy; Open WebUI credential/model catalog; credential-gated read-only buffered Hermes run review; credential- and canonical-MeshID-gated read-only War Room dashboard with partial results, freshness, and provenance.
@@ -12,7 +22,8 @@ Evidence is recorded per platform and must not be generalized across lanes.
 - iOS archive/export: succeeded with Xcode 26.5 and XcodeGen 2.46.0.
 - IPA signature: `Apple Distribution: THOX AI LLC (DVJ6Z5343U)`; bundle `ai.thox.warroom`; team `DVJ6Z5343U`.
 - Provisioning: `iOS Team Store Provisioning Profile: ai.thox.warroom`.
-- IPA SHA-256: `e47e670af9f65a2c354111f0a641854497205012f61b191ec784f0529393e6db`.
+- Privacy manifest: validated in the signed archive and exported IPA at the iOS bundle root.
+- IPA SHA-256: `7e946bc76564b635a428691e1ebb5754acd60889743cc9145cd14aae46f956a8`.
 - App Store Connect lookup authenticated with the externally supplied API key and returned zero app records for bundle `ai.thox.warroom`.
 - Upload: not retried because no App Store Connect app record exists; an upload cannot attach to TestFlight until the website-only record is created.
 - Remaining iOS gate: create the app record, upload, wait for processing, install from TestFlight on a physical iPhone, and complete authenticated/relaunch checks.

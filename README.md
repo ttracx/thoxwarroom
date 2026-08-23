@@ -2,11 +2,13 @@
 
 > Local-first native SwiftUI foundation for private THOX workspaces. One codebase, two targets: macOS 14+ (universal) and iOS 17+ (iPhone). Built for THOX AI LLC.
 
-ThoxWarRoom now starts with native workspace onboarding. Users explicitly choose a local-device, private-network, or hosted boundary before any provider can be opened; hosted transfer requires separate consent. Endpoint/profile metadata is stored locally without credentials. The former Open WebUI shell remains as a compatibility surface only for an explicitly authorized, exact `https://webui.thox.ai` profile.
+ThoxWarRoom now starts with native workspace onboarding. Users explicitly choose a local-device, private-network, or hosted boundary before any provider can be opened; hosted transfer requires separate consent. Endpoint/profile metadata is stored locally without credentials. The former Open WebUI shell remains compiled for migration compatibility but is not exposed while the hosted retention and App Store privacy contract are unverified.
 
 > **Current scope:** v4.2 has the clean-room shared core, native provider selection, Open WebUI discovery/credential/model-catalog UI, a credential-gated read-only Hermes run review, and a credential-gated read-only MeshStack War Room dashboard. Native chat, live Hermes streaming/actions, encrypted history, durable audit storage, live private-service verification, and completed distribution remain unfinished. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [current service contracts](docs/current_service_contracts.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md).
 
 Current build, signing, upload, and blocker evidence is recorded in [release_evidence.md](release_evidence.md).
+
+Both Apple targets bundle `App/PrivacyInfo.xcprivacy`. Local and release scripts validate its reviewed no-tracking/no-developer-collection declarations, the app-only UserDefaults reason, and platform-correct bundle placement. Re-audit the manifest before adding SDKs, telemetry, shared defaults, or developer-operated data collection.
 
 ## Targets
 
@@ -88,12 +90,12 @@ APPLE_ID=you@apple.com APPLE_PASSWORD=app-specific-pw \
 open build/macos/derived/Build/Products/Release/ThoxWarRoom.app
 ```
 
-The app opens native workspace onboarding. Only an explicitly consented exact `https://webui.thox.ai` hosted profile exposes the compatibility WebView.
+The app opens native workspace onboarding. The legacy `https://webui.thox.ai` compatibility WebView is disabled pending a verified hosted retention and App Store privacy contract; configured Open WebUI profiles use the native connection surface.
 
 ## Behavior
 
 - **Explicit workspace boundary** — local device is the default; private network and hosted service are separately labeled. No provider is contacted while saving metadata.
-- **Hosted consent and exact-origin gate** — hosted configuration requires affirmative data-transfer consent. The compatibility WebView appears only for the credential-free, default-port, empty-path `https://webui.thox.ai` origin.
+- **Hosted consent and disabled compatibility boundary** — hosted configuration requires affirmative data-transfer consent. The legacy WebView additionally remains feature-disabled until THOX verifies server retention, embedded domains, and matching App Store privacy declarations.
 - **Workspace-scoped credentials** — onboarding stores only the validated `WorkspaceProfile` in local preferences. Open WebUI and Hermes credentials are rejected in URLs, entered through privacy-sensitive native fields, and stored as non-synchronizing `WhenUnlockedThisDeviceOnly` Keychain items. Workspace removal deletes the scoped Keychain item before removing profile metadata and preserves metadata if secure deletion fails.
 - **Native provider surfaces** — Open WebUI exposes bounded public discovery and a protected model catalog; Hermes exposes credential-gated read-only run status and buffered events. Neither surface claims native chat, live streaming, or audited approval controls.
 - **Read-only War Room** — MeshStack workspaces require a canonical operator-supplied mesh UUID and Keychain credential before loading bounded devices, topology, and events. The dashboard shows provenance, freshness, empty/offline/error states, and partial results; it exposes no pairing, deletion, token creation, or control-plane write.

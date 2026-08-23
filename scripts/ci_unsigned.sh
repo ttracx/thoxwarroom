@@ -19,6 +19,7 @@ echo "==> Generating the Xcode project and app icons"
 "$XCODEGEN_BIN" generate --quiet
 python3 scripts/gen_appiconset.py
 python3 scripts/validate_appiconsets.py
+python3 scripts/validate_privacy_manifest.py App/PrivacyInfo.xcprivacy
 python3 scripts/validate_generated_drift.py "$XCODEGEN_BIN"
 
 echo "==> Testing standalone Swift packages with warnings as errors"
@@ -41,6 +42,9 @@ xcodebuild \
     CODE_SIGN_IDENTITY="" \
     build-for-testing
 
+python3 scripts/validate_privacy_manifest.py \
+    "$DERIVED_DATA/Build/Products/Debug/ThoxWarRoom.app/Contents/Resources/PrivacyInfo.xcprivacy"
+
 echo "==> Running macOS tests without signing"
 xcodebuild \
     -project ThoxWarRoom.xcodeproj \
@@ -62,5 +66,8 @@ xcodebuild \
     CODE_SIGNING_ALLOWED=NO \
     CODE_SIGN_IDENTITY="" \
     build-for-testing
+
+python3 scripts/validate_privacy_manifest.py \
+    "$DERIVED_DATA/Build/Products/Debug-iphonesimulator/ThoxWarRoom.app/PrivacyInfo.xcprivacy"
 
 echo "==> Unsigned CI passed"

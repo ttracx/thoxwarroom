@@ -81,6 +81,9 @@ if [ -z "${SKIP_GEN_ICONS:-}" ]; then
     python3 scripts/gen_appiconset.py
 fi
 
+echo "==> Validating reviewed privacy declarations"
+python3 scripts/validate_privacy_manifest.py App/PrivacyInfo.xcprivacy
+
 mkdir -p "$BUILD_DIR"
 
 XCODE_SIGNING_ARGS=()
@@ -133,6 +136,8 @@ APP_PATH=$(find "$BUILD_DIR/derived/Build/Products/$BUILD_CONFIG" -name "$APP_NA
 [ -n "${APP_PATH:-}" ] || fail "build succeeded but $APP_NAME was not found in derived data"
 
 echo "==> App built at: $APP_PATH"
+python3 scripts/validate_privacy_manifest.py \
+    "$APP_PATH/Contents/Resources/PrivacyInfo.xcprivacy"
 
 assert_no_debug_entitlement() {
     local app_path=$1
@@ -234,6 +239,8 @@ verify_final_dmg() {
 
     (
         trap 'hdiutil detach "$mount_point" >/dev/null 2>&1 || true; rmdir "$mount_point" >/dev/null 2>&1 || true' EXIT
+        python3 scripts/validate_privacy_manifest.py \
+            "$mounted_app/Contents/Resources/PrivacyInfo.xcprivacy"
         verify_developer_id_app "$mounted_app"
         xcrun stapler validate "$mounted_app"
         spctl --assess --type execute --verbose=2 "$mounted_app"

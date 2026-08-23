@@ -62,12 +62,13 @@ final class WorkspaceProviderRoutingTests: XCTestCase {
         XCTAssertNil(WorkspaceProviderKind(providerID: ProviderID(rawValue: "OPEN-WEBUI")))
     }
 
-    func testHostedCompatibilityRequiresOpenWebUIAndExactAuthorizedOrigin() throws {
-        XCTAssertTrue(try profile(
+    func testHostedCompatibilityRemainsDisabledUntilPrivacyContractIsVerified() throws {
+        XCTAssertFalse(WorkspaceProfile.isHostedCompatibilityEnabled)
+        XCTAssertFalse(try profile(
             endpoint: "https://webui.thox.ai",
             provider: WorkspaceProviderKind.openWebUI.descriptor
         ).supportsHostedCompatibilityOrigin)
-        XCTAssertTrue(try profile(
+        XCTAssertFalse(try profile(
             endpoint: "https://webui.thox.ai",
             provider: legacyOpenWebUIDescriptor
         ).supportsHostedCompatibilityOrigin)

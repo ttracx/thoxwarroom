@@ -71,3 +71,15 @@
 - **Compliance impact:** the selected provider, boundary, and advertised capability are reviewable control inputs. No compliance certification is claimed.
 - **Final choice:** explicit provider selection, provider-specific validated ports, capability-gated routing, and read-only-first native delivery.
 - **Follow-up:** add live private-provider contract evidence, DNS-rebinding defense, encrypted audit persistence, and reviewed approval controls before any Hermes mutation UI.
+
+## ADR-007: Treat Apple privacy declarations as a tested source contract
+
+- **Decision:** Bundle one reviewed `PrivacyInfo.xcprivacy` in both Apple app targets and fail local/release builds when its declarations or platform placement drift.
+- **Context:** The current executable stores app-only workspace metadata in `UserDefaults`, stores secrets in the device-only Keychain, has no telemetry or tracking SDK, and sends requests only to operator-configured provider infrastructure.
+- **Options considered:** omit the app manifest until App Store validation; maintain untested per-platform manifests; share and validate one source manifest.
+- **Tradeoffs:** exact validation intentionally fails whenever declarations change, so new storage, SDKs, telemetry, or developer-operated collection requires an explicit review instead of silently extending the existing claim.
+- **Security impact:** tracking is false, tracking domains and developer/SDK collection are empty, and the only current required-reason declaration is app-only UserDefaults reason `CA92.1`. This is a source assertion, not proof of provider behavior.
+- **Local-first impact:** the declaration makes the absence of THOX telemetry/collection explicit while preserving user-directed connections to local or private providers.
+- **Compliance impact:** reproducible manifest evidence improves reviewability but does not replace privacy policy, App Store Connect answers, legal review, or live data-flow verification.
+- **Final choice:** one source manifest plus deterministic validation at source, built-app, archive, IPA, and mounted-DMG boundaries; keep the legacy developer-hosted WebView route disabled while its collection/retention contract is unverified.
+- **Follow-up:** re-audit before adding any dependency or data flow; add the public privacy/support metadata and an in-app privacy-policy surface before App Store review.

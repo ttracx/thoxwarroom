@@ -78,6 +78,8 @@ fi
 
 echo "==> Validating app icon catalogs"
 python3 scripts/validate_appiconsets.py
+echo "==> Validating reviewed privacy declarations"
+python3 scripts/validate_privacy_manifest.py App/PrivacyInfo.xcprivacy
 
 mkdir -p "$BUILD_DIR"
 
@@ -102,6 +104,9 @@ if [ ! -d "$ARCHIVE" ]; then
     echo "ERROR: archive at $ARCHIVE missing"
     exit 1
 fi
+
+python3 scripts/validate_privacy_manifest.py \
+    "$ARCHIVE/Products/Applications/$PROJECT_NAME.app/PrivacyInfo.xcprivacy"
 
 EXPORT_OPTIONS="$BUILD_DIR/ExportOptions.plist"
 cat > "$EXPORT_OPTIONS" <<EOF
@@ -150,6 +155,14 @@ if [ -z "${IPA_PATH:-}" ]; then
 fi
 
 echo "==> IPA at: $IPA_PATH"
+
+IPA_PRIVACY_MANIFEST=$(mktemp "${TMPDIR:-/tmp}/thoxwarroom-privacy.XXXXXX")
+trap 'rm -f "$IPA_PRIVACY_MANIFEST"' EXIT
+if ! unzip -p "$IPA_PATH" "Payload/$PROJECT_NAME.app/PrivacyInfo.xcprivacy" >"$IPA_PRIVACY_MANIFEST"; then
+    echo "ERROR: exported IPA does not contain PrivacyInfo.xcprivacy at the app-bundle root" >&2
+    exit 1
+fi
+python3 scripts/validate_privacy_manifest.py "$IPA_PRIVACY_MANIFEST"
 
 if [ -z "${SKIP_UPLOAD:-}" ]; then
     echo "==> Uploading to TestFlight via xcrun altool"

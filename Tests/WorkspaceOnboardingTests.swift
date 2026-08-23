@@ -38,12 +38,13 @@ final class WorkspaceOnboardingModelTests: XCTestCase {
         XCTAssertEqual(model.validationMessage, "Confirm hosted data transfer.")
     }
 
-    func testCompatibilityEntryRequiresExactAuthorizedHostedOrigin() throws {
+    func testCompatibilityEntryRemainsDisabledForHostedOrigins() throws {
         let exact = try profile(endpoint: "https://webui.thox.ai")
         let path = try profile(endpoint: "https://webui.thox.ai/chat")
         let suffix = try profile(endpoint: "https://webui.thox.ai.evil.example")
 
-        XCTAssertTrue(exact.supportsHostedCompatibilityOrigin)
+        XCTAssertFalse(WorkspaceProfile.isHostedCompatibilityEnabled)
+        XCTAssertFalse(exact.supportsHostedCompatibilityOrigin)
         XCTAssertFalse(path.supportsHostedCompatibilityOrigin)
         XCTAssertFalse(suffix.supportsHostedCompatibilityOrigin)
     }

@@ -4,6 +4,7 @@ Evidence is recorded per platform and must not be generalized across lanes.
 
 ## 2026-08-23 Apple privacy manifest validation
 
+- Source release commit: `1056d60` on `main`.
 - `App/PrivacyInfo.xcprivacy` is a valid property list bundled into both generated app targets.
 - Current declarations: tracking disabled, no tracking domains, no developer/SDK data collection, and `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1` for app-only workspace profile preferences.
 - Source audit found direct required-reason API usage only through `UserDefaults`; credentials remain in non-synchronizing device-only Keychain storage and are not declared as collected by THOX.
@@ -11,10 +12,11 @@ Evidence is recorded per platform and must not be generalized across lanes.
 - Secret-free CI validates the source manifest and its Apple-required placement at the iOS app-bundle root and macOS `Contents/Resources` path.
 - Full local CI passed: 77 standalone package tests, 58 integrated macOS app tests, and the generic iOS Simulator app/test build.
 - This evidence does not replace App Store Connect privacy answers, an in-app/privacy-policy URL, review approval, TestFlight processing, or a fresh review if SDKs, telemetry, storage, or data ownership change.
+- GitHub Actions run `32642947224` for `1056d60` failed before every step; its job has zero steps and the exact annotation `The job was not started because your account is locked due to a billing issue.` Local validation below is therefore not upgraded to remote-CI evidence.
 
 ## 2026-08-23 native provider and War Room integration with signed iOS export
 
-- Source: local `main` through `d6e3ba4` plus the reviewed privacy-manifest release changes documented above.
+- Source: release commit `1056d60` plus this evidence-only follow-up.
 - Secret-free CI: passed deterministic XcodeGen/assets, 77 standalone package tests with warnings as errors, 58 integrated macOS app tests, and generic iOS Simulator app/test build.
 - GitHub Actions run `32641564386` for `fcd62e9` failed before every step; its only job has zero steps and the exact annotation `The job was not started because your account is locked due to a billing issue.` This is an account/remote-CI blocker, not source-test evidence.
 - Native slice: explicit Open WebUI/Hermes/MeshStack selection; provider-specific endpoint policy; Open WebUI credential/model catalog; credential-gated read-only buffered Hermes run review; credential- and canonical-MeshID-gated read-only War Room dashboard with partial results, freshness, and provenance.

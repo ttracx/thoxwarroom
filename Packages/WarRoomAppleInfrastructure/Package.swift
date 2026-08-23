@@ -16,15 +16,16 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../WarRoomCore"),
+        .package(path: "../WarRoomHermes"),
     ],
     targets: [
         .target(
             name: "WarRoomAppleInfrastructure",
-            dependencies: ["WarRoomCore"]
+            dependencies: ["WarRoomCore", "WarRoomHermes"]
         ),
         .testTarget(
             name: "WarRoomAppleInfrastructureTests",
-            dependencies: ["WarRoomAppleInfrastructure", "WarRoomCore"]
+            dependencies: ["WarRoomAppleInfrastructure", "WarRoomCore", "WarRoomHermes"]
         ),
     ],
     swiftLanguageVersions: [.v5]

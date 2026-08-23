@@ -95,6 +95,55 @@ pipeline, usage, event, and webhook requests. This is **current public-client
 evidence**, but it does not prove the authenticated response DTOs used by this
 particular deployment.
 
+### Authenticated native chat and streaming determination
+
+The exact authenticated native chat/streaming contract **cannot be frozen from
+the evidence currently retained in this repository**. The clean-room evidence
+establishes only the following boundaries:
+
+| Contract element | Evidence | Determination |
+|---|---|---|
+| Completion route | **Observed live, unauthenticated** | `POST /api/chat/completions` exists behind authentication; an empty request returned `401` JSON with `detail` |
+| History route | **Observed live, unauthenticated** | `GET /api/v1/chats/` exists behind authentication; it returned `401` JSON with `detail` |
+| API authorization | **Public-client bundle evidence** | The deployed frontend sends bearer authorization for protected chat requests; token issuance, lifetime, refresh, revocation, and cookie-to-token handoff were not captured |
+| WebSocket availability | **Observed live configuration** | `/api/config` advertises `enable_websocket: true`; this does not identify a chat socket URL, subprotocol, event schema, or prove that completion tokens use WebSockets |
+| Native provider capability | **Current clean-room package source** | `WarRoomOpenWebUI` advertises neither `chatCompletions` nor `streamingChat` and defines no chat route or DTO |
+
+No retained evidence establishes the authenticated completion request fields,
+the non-streaming response envelope, the streaming content type or framing,
+termination markers, error frames, citations, usage fields, conversation
+creation/update ordering, history pagination, cancellation behavior, or retry
+semantics. In particular, neither the `enable_websocket` flag nor the
+`/api/chat/*` bundle prefix is sufficient to choose WebSocket, SSE, NDJSON, or
+buffered JSON for a native implementation.
+
+The exact blocker is the absence of a sanctioned, externally provisioned
+non-production identity plus a sanitized authenticated capture from the
+currently deployed service. Native password collection is not an acceptable
+substitute: the unauthenticated `422` sign-in validation proves only that the
+route validates `email` and `password`, not that password sign-in is the
+supported native credential lifecycle.
+
+To unblock native chat without retaining secrets or user data, capture all of
+the following with a dedicated test account and a harmless synthetic prompt:
+
+1. The externally provisioned bearer credential boundary and its documented
+   refresh, revocation, and logout behavior; retain no token or cookie value.
+2. One authenticated, non-streaming completion request and response, preserving
+   method, path, status, content type, and sanitized field names/types.
+3. One authenticated streaming completion from connection through normal
+   termination, preserving transport selection, headers, frame/event names,
+   sanitized field names/types, and terminal marker.
+4. One cancelled stream and one sanitized authentication, validation, and
+   server error response.
+5. The minimum chat creation/update/list/get sequence required to make the
+   completion durable, including pagination and citation/usage shapes when
+   present.
+
+Until that capture exists, `/api/chat/completions` and `/api/v1/chats/` are
+route-and-authentication-boundary evidence only and must not be promoted to a
+typed native chat contract.
+
 ### Native Open WebUI adapter contract
 
 The first native adapter should support only the following until an

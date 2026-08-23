@@ -4,6 +4,8 @@
 
 ThoxWarRoom is a thin, branded shell that loads the THOX Open WebUI in a persistent `WKWebView`. Sign in once; the cookie store keeps you signed in across launches. Off-domain links open in the system browser instead of navigating away. Dark-mode-first, THOX emerald chip-mark icon, native macOS titlebar and iOS navigation chrome.
 
+> **Current scope:** v4.2 is a compatibility shell, not yet the full native War Room product that existed in the v4.1 Flutter history. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md) for the evidence-based native iOS/macOS delivery plan.
+
 ## Targets
 
 | Target | Platform | Min OS | UI framework | Web framework |

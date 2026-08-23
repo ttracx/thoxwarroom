@@ -1,9 +1,11 @@
 import SwiftUI
+import WarRoomCore
 import WarRoomHermes
 
 struct HermesRunReviewView: View {
     @ObservedObject var model: HermesRunReviewModel
     @ObservedObject var mutationModel: HermesMutationReviewModel
+    @ObservedObject var reconciliationModel: HermesOperationReconciliationModel
     @FocusState private var isRunIDFocused: Bool
 
     var body: some View {
@@ -13,6 +15,7 @@ struct HermesRunReviewView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     header
                     runSelector
+                    operationReconciliation
                     mutationReview
                     phaseContent
                 }
@@ -22,7 +25,144 @@ struct HermesRunReviewView: View {
         }
         .tint(ThoxTheme.accent)
         .onDisappear { model.cancelLoading() }
+        .onDisappear { reconciliationModel.cancelLoading() }
         .accessibilityIdentifier("hermes-run-review")
+    }
+
+    private var operationReconciliation: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Audited operation recovery", systemImage: "clock.arrow.circlepath")
+                .font(.headline)
+            Text("Read-only, encrypted evidence for this workspace. Pending records can indicate an interrupted or indeterminate operation; this view never retries them.")
+                .foregroundStyle(.secondary)
+            reconciliationProvenance
+            reconciliationPhaseContent
+        }
+        .padding(18)
+        .background(ThoxTheme.surface, in: RoundedRectangle(cornerRadius: 16))
+        .overlay { RoundedRectangle(cornerRadius: 16).stroke(ThoxTheme.separator) }
+        .accessibilityIdentifier("hermes-operation-reconciliation")
+    }
+
+    private var reconciliationProvenance: some View {
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+            GridRow { Text("Workspace").bold(); Text(reconciliationModel.workspaceName) }
+            GridRow {
+                Text("Workspace ID").bold()
+                Text(reconciliationModel.workspaceID.rawValue.uuidString.lowercased())
+                    .textSelection(.enabled)
+            }
+            GridRow { Text("Source").bold(); Text("Encrypted device-local audit ledger") }
+        }
+        .font(.caption)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Audited operation workspace provenance")
+    }
+
+    @ViewBuilder
+    private var reconciliationPhaseContent: some View {
+        switch reconciliationModel.phase {
+        case .unavailable(let message):
+            Label(message, systemImage: "lock.fill")
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("hermes-reconciliation-unavailable")
+        case .idle:
+            Button("Load encrypted operation evidence") { reconciliationModel.load() }
+                .buttonStyle(.borderedProminent)
+                .accessibilityHint("Reads bounded pending and terminal audit evidence for this workspace without contacting Hermes")
+                .accessibilityIdentifier("load-hermes-reconciliation")
+        case .loading:
+            HStack {
+                ProgressView("Verifying encrypted evidence…")
+                Button("Cancel") { reconciliationModel.cancelLoading() }
+                    .accessibilityIdentifier("cancel-hermes-reconciliation")
+            }
+            .accessibilityIdentifier("hermes-reconciliation-loading")
+        case .cancelled:
+            reconciliationMessage(
+                title: "Evidence load cancelled",
+                detail: "No Hermes action was taken.",
+                icon: "xmark.circle",
+                identifier: "hermes-reconciliation-cancelled"
+            )
+        case .failed(let message):
+            reconciliationMessage(
+                title: "Evidence unavailable",
+                detail: message,
+                icon: "exclamationmark.triangle.fill",
+                identifier: "hermes-reconciliation-failed"
+            )
+        case .loaded(let snapshot):
+            reconciliationSnapshot(snapshot)
+        }
+    }
+
+    private func reconciliationMessage(
+        title: String,
+        detail: String,
+        icon: String,
+        identifier: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon).font(.callout.weight(.semibold))
+            Text(detail).foregroundStyle(.secondary)
+            Button("Load again") { reconciliationModel.load() }
+                .disabled(!reconciliationModel.canLoad)
+                .accessibilityIdentifier("reload-hermes-reconciliation")
+        }
+        .accessibilityIdentifier(identifier)
+    }
+
+    private func reconciliationSnapshot(
+        _ snapshot: HermesOperationReconciliationSnapshot
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if snapshot.isEmpty {
+                Label("No audited operations are recorded for this workspace.", systemImage: "tray")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("hermes-reconciliation-empty")
+            } else {
+                reconciliationRecords(
+                    title: "Pending — review before any new action",
+                    page: snapshot.pending,
+                    identifier: "hermes-reconciliation-pending"
+                )
+                reconciliationRecords(
+                    title: "Terminal outcomes",
+                    page: snapshot.terminal,
+                    identifier: "hermes-reconciliation-terminal"
+                )
+            }
+            Button("Refresh evidence") { reconciliationModel.load() }
+                .disabled(!reconciliationModel.canLoad)
+                .accessibilityHint("Reads the encrypted ledger again; it does not retry an operation")
+                .accessibilityIdentifier("refresh-hermes-reconciliation")
+        }
+        .accessibilityIdentifier("hermes-reconciliation-loaded")
+    }
+
+    private func reconciliationRecords(
+        title: String,
+        page: AuditedOperationReconciliationPage,
+        identifier: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.callout.weight(.semibold))
+            if page.records.isEmpty {
+                Text("None").font(.caption).foregroundStyle(.secondary)
+            } else {
+                ForEach(page.records, id: \.correlationID) { record in
+                    HermesOperationEvidenceRow(record: record)
+                }
+            }
+            if page.truncated {
+                Text("Additional records exist. This bounded view shows only the first \(page.records.count).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("\(identifier)-truncated")
+            }
+        }
+        .accessibilityIdentifier(identifier)
     }
 
     private var header: some View {
@@ -393,6 +533,64 @@ struct HermesRunReviewView: View {
         .padding(24)
         .background(ThoxTheme.surface, in: RoundedRectangle(cornerRadius: 16))
         .overlay { RoundedRectangle(cornerRadius: 16).stroke(ThoxTheme.separator) }
+    }
+}
+
+private struct HermesOperationEvidenceRow: View {
+    let record: AuditedOperationReconciliationRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(operationLabel, systemImage: record.status == .pending ? "hourglass" : "checkmark.shield")
+                .font(.callout.weight(.semibold))
+            Text("Correlation: \(record.correlationID.description)")
+                .font(.caption.monospaced())
+                .textSelection(.enabled)
+            Text("Intent recorded \(record.intent.event.occurredAt.formatted(date: .abbreviated, time: .standard))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if let outcome = record.outcome?.event.outcome {
+                Text("Durable outcome: \(outcomeLabel(outcome))")
+                    .font(.caption.weight(.medium))
+            } else {
+                Text("No terminal outcome is present. Do not infer whether Hermes received the operation.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(ThoxTheme.background.opacity(0.45), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(record.status == .pending ? "Pending" : "Terminal") audited \(operationLabel), correlation \(record.correlationID.description)")
+    }
+
+    private var operationLabel: String {
+        guard case .string(let operation) = record.intent.event.metadata["operation"] else {
+            return "Operation type redacted"
+        }
+        switch operation {
+        case "approval":
+            guard case .string(let choice) = record.intent.event.metadata["choice"],
+                  ["once", "session", "always", "deny"].contains(choice) else {
+                return "Hermes approval"
+            }
+            return "Hermes approval • \(choice)"
+        case "stop":
+            return "Hermes stop request"
+        default:
+            return "Unknown operation type • value redacted"
+        }
+    }
+
+    private func outcomeLabel(_ outcome: AuditOutcome) -> String {
+        switch outcome {
+        case .requested: "Requested"
+        case .succeeded: "Succeeded"
+        case .denied: "Denied"
+        case .failed: "Failed"
+        case .cancelled: "Cancelled"
+        }
     }
 }
 

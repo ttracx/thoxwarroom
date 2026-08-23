@@ -41,6 +41,7 @@ struct HermesRunReviewHost: View {
     @StateObject private var accessModel: HermesCredentialAccessModel
     @StateObject private var reviewModel: HermesRunReviewModel
     @StateObject private var mutationModel: HermesMutationReviewModel
+    @StateObject private var reconciliationModel: HermesOperationReconciliationModel
     let onClose: () -> Void
     @State private var isCredentialRemovalPresented = false
 
@@ -64,6 +65,12 @@ struct HermesRunReviewHost: View {
             workspaceName: profile.displayName,
             prerequisites: .unavailable,
             executor: nil
+        ))
+        let operationStore = try? EncryptedDurableAuditedOperationStore()
+        _reconciliationModel = StateObject(wrappedValue: HermesOperationReconciliationModel(
+            workspaceID: profile.id,
+            workspaceName: profile.displayName,
+            reader: operationStore
         ))
         self.onClose = onClose
     }
@@ -136,7 +143,11 @@ struct HermesRunReviewHost: View {
             .frame(maxWidth: 620, alignment: .leading)
             .padding(24)
         case .ready:
-            HermesRunReviewView(model: reviewModel, mutationModel: mutationModel)
+            HermesRunReviewView(
+                model: reviewModel,
+                mutationModel: mutationModel,
+                reconciliationModel: reconciliationModel
+            )
         case .failed(let message):
             VStack(spacing: 16) {
                 Label("Secure storage unavailable", systemImage: "exclamationmark.triangle.fill")

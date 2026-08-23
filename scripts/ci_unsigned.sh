@@ -17,6 +17,7 @@ echo "==> Using $($XCODEGEN_BIN --version) from the repository tool directory"
 
 echo "==> Validating deterministic release SBOM generation"
 python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+python3 scripts/scan_source_secrets.py
 ALLOW_DIRTY_SBOM=1 \
     SBOM_OUTPUT=build/unsigned-ci/ThoxWarRoom.spdx.json \
     ./scripts/generate_sbom.sh

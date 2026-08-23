@@ -74,7 +74,9 @@ if [ "$SIGNING_MODE" = "developer-id" ]; then
 fi
 
 echo "==> Regenerating Xcode project"
-xcodegen generate --quiet
+XCODEGEN_BIN=$(./scripts/bootstrap_xcodegen.sh)
+echo "==> Using $($XCODEGEN_BIN --version) from the repository tool directory"
+"$XCODEGEN_BIN" generate --quiet
 
 if [ -z "${SKIP_GEN_ICONS:-}" ]; then
     echo "==> Regenerating app icons"

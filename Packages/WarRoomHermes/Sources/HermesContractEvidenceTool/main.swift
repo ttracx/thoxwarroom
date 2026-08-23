@@ -25,7 +25,7 @@ do {
     print(
         "valid mode=\(command.rawValue) captured=\(result.captured.count) "
             + "missing=\(result.missing.count) artifacts=\(result.artifactCount) "
-            + "bytes=\(result.totalArtifactBytes) missing_ids=\(missing.isEmpty ? \"none\" : missing)"
+            + "bytes=\(result.totalArtifactBytes) missing_ids=\(missing.isEmpty ? "none" : missing)"
     )
 } catch let error as HermesEvidenceValidationError {
     if case let .incompleteContract(missing) = error {

@@ -3,6 +3,7 @@ import WarRoomHermes
 
 struct HermesRunReviewView: View {
     @ObservedObject var model: HermesRunReviewModel
+    @ObservedObject var mutationModel: HermesMutationReviewModel
     @FocusState private var isRunIDFocused: Bool
 
     var body: some View {
@@ -12,6 +13,7 @@ struct HermesRunReviewView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     header
                     runSelector
+                    mutationReview
                     phaseContent
                 }
                 .frame(maxWidth: 760, alignment: .leading)
@@ -27,10 +29,10 @@ struct HermesRunReviewView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Hermes run review", systemImage: "eye.fill")
                 .font(.title2.weight(.semibold))
-            Text("Read-only • Live event review")
+            Text("Live event review • Human-controlled actions")
                 .font(.callout.weight(.medium))
                 .foregroundStyle(ThoxTheme.accent)
-            Text("Review status and event provenance. Approval and stop actions are unavailable in this surface.")
+            Text("Review status and provenance. Mutations stay disabled unless authorization, credentials, and durable audit protection are all ready.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -92,6 +94,162 @@ struct HermesRunReviewView: View {
             get: { model.selectedRecentRun },
             set: { model.selectRecentRun($0) }
         )
+    }
+
+    private var mutationReview: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Hermes action review", systemImage: "hand.raised.fill")
+                .font(.headline)
+            mutationPhaseContent
+        }
+        .padding(18)
+        .background(ThoxTheme.surface, in: RoundedRectangle(cornerRadius: 16))
+        .overlay { RoundedRectangle(cornerRadius: 16).stroke(ThoxTheme.separator) }
+        .accessibilityIdentifier("hermes-mutation-review")
+    }
+
+    @ViewBuilder
+    private var mutationPhaseContent: some View {
+        switch mutationModel.phase {
+        case .unavailable(let message):
+            Label(message, systemImage: "lock.fill")
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Hermes actions unavailable. \(message)")
+                .accessibilityIdentifier("hermes-mutation-unavailable")
+        case .ready:
+            mutationPreparation
+        case .confirming(let context):
+            mutationConfirmation(context)
+        case .submitting(let context):
+            VStack(alignment: .leading, spacing: 10) {
+                ProgressView("Sending the reviewed operation once…")
+                mutationContext(context)
+                Button("Cancel operation") { mutationModel.cancelSubmission() }
+                    .accessibilityHint("Requests cancellation. If transport began, the result may be indeterminate.")
+                    .accessibilityIdentifier("cancel-hermes-mutation")
+            }
+            .accessibilityIdentifier("hermes-mutation-loading")
+        case .succeeded(let message):
+            mutationTerminal(
+                icon: "checkmark.circle.fill",
+                title: "Operation completed",
+                message: message,
+                identifier: "hermes-mutation-success"
+            )
+        case .failed(let message):
+            mutationTerminal(
+                icon: "exclamationmark.triangle.fill",
+                title: "Operation not completed",
+                message: message,
+                identifier: "hermes-mutation-failure"
+            )
+        case .cancelled:
+            mutationTerminal(
+                icon: "xmark.circle.fill",
+                title: "Operation cancelled",
+                message: "The operation was cancelled before Hermes transport was attempted.",
+                identifier: "hermes-mutation-cancelled"
+            )
+        case .indeterminate(let message):
+            mutationTerminal(
+                icon: "questionmark.diamond.fill",
+                title: "Result indeterminate",
+                message: message,
+                identifier: "hermes-mutation-indeterminate"
+            )
+        }
+    }
+
+    private var mutationPreparation: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Choose one action, then review its exact scope before anything is sent.")
+                .foregroundStyle(.secondary)
+            Picker("Action", selection: $mutationModel.selectedOption) {
+                ForEach(HermesMutationReviewOption.allCases, id: \.self) { option in
+                    Text(option.label).tag(option)
+                }
+            }
+            .accessibilityIdentifier("hermes-mutation-choice")
+            if mutationModel.selectedOption != .stop {
+                Toggle("Resolve all pending approval requests for this run", isOn: $mutationModel.resolveAll)
+                    .accessibilityIdentifier("hermes-mutation-resolve-all")
+            }
+            Button("Review operation") {
+                mutationModel.prepare(runIDInput: model.runIDInput)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!mutationModel.canPrepare(runIDInput: model.runIDInput))
+            .accessibilityHint("Opens a confirmation showing workspace, run, choice, and correlation identifier")
+            .accessibilityIdentifier("review-hermes-mutation")
+        }
+    }
+
+    private func mutationConfirmation(_ context: HermesMutationReviewContext) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(
+                context.option.isDestructiveOrPersistent ? "Deliberate confirmation required" : "Confirm exact operation",
+                systemImage: context.option.isDestructiveOrPersistent ? "exclamationmark.triangle.fill" : "checkmark.shield.fill"
+            )
+            .font(.headline)
+            mutationContext(context)
+            Text("This sends one request. It will not retry automatically.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Go back") { mutationModel.cancelConfirmation() }
+                    .accessibilityIdentifier("cancel-hermes-mutation-confirmation")
+                if context.option.isDestructiveOrPersistent {
+                    Button("Confirm \(context.option.label)", role: .destructive) {
+                        mutationModel.confirm()
+                    }
+                    .accessibilityIdentifier("confirm-hermes-mutation")
+                } else {
+                    Button("Confirm \(context.option.label)") { mutationModel.confirm() }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("confirm-hermes-mutation")
+                }
+            }
+        }
+        .accessibilityIdentifier("hermes-mutation-confirmation")
+    }
+
+    private func mutationContext(_ context: HermesMutationReviewContext) -> some View {
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+            GridRow { Text("Workspace").bold(); Text(context.workspaceName) }
+            GridRow {
+                Text("Workspace ID").bold()
+                Text(context.workspaceID.rawValue.uuidString.lowercased()).textSelection(.enabled)
+            }
+            GridRow {
+                Text("Run").bold()
+                Text(context.runID.rawValue).privacySensitive().textSelection(.enabled)
+            }
+            GridRow { Text("Choice").bold(); Text(context.option.label) }
+            GridRow { Text("Resolve all").bold(); Text(context.resolveAll ? "Yes" : "No") }
+            GridRow {
+                Text("Correlation").bold()
+                Text(context.correlationID.description).textSelection(.enabled)
+            }
+        }
+        .font(.callout)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Reviewed Hermes operation scope")
+    }
+
+    private func mutationTerminal(
+        icon: String,
+        title: String,
+        message: String,
+        identifier: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon).font(.headline)
+            Text(message).foregroundStyle(.secondary)
+            Button("Prepare a new operation") { mutationModel.beginNewReview() }
+                .accessibilityHint("Creates a new review with a new correlation identifier; it does not retry the prior request")
+                .accessibilityIdentifier("new-hermes-mutation-review")
+        }
+        .accessibilityIdentifier(identifier)
     }
 
     @ViewBuilder

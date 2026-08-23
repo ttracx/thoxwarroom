@@ -40,6 +40,7 @@ struct WorkspaceConnectionHost: View {
 struct HermesRunReviewHost: View {
     @StateObject private var accessModel: HermesCredentialAccessModel
     @StateObject private var reviewModel: HermesRunReviewModel
+    @StateObject private var mutationModel: HermesMutationReviewModel
     let onClose: () -> Void
     @State private var isCredentialRemovalPresented = false
 
@@ -55,6 +56,14 @@ struct HermesRunReviewHost: View {
                 profile: profile,
                 vault: vault
             )
+        ))
+        // Mutating composition remains fail-closed until the app can inject verified
+        // authorization and the durable audited-operation store as one complete route.
+        _mutationModel = StateObject(wrappedValue: HermesMutationReviewModel(
+            workspaceID: profile.id,
+            workspaceName: profile.displayName,
+            prerequisites: .unavailable,
+            executor: nil
         ))
         self.onClose = onClose
     }
@@ -127,7 +136,7 @@ struct HermesRunReviewHost: View {
             .frame(maxWidth: 620, alignment: .leading)
             .padding(24)
         case .ready:
-            HermesRunReviewView(model: reviewModel)
+            HermesRunReviewView(model: reviewModel, mutationModel: mutationModel)
         case .failed(let message):
             VStack(spacing: 16) {
                 Label("Secure storage unavailable", systemImage: "exclamationmark.triangle.fill")

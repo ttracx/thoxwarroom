@@ -192,7 +192,7 @@ struct WorkspaceOnboardingView: View {
     private var endpointHelp: String {
         switch model.draft.boundary {
         case .localMachine: "Use localhost or a loopback address. HTTP is allowed because traffic never leaves this device."
-        case .privateNetwork: "Use the exact HTTP or HTTPS address supplied by your organization."
+        case .privateNetwork: "Use the exact HTTPS address supplied by your organization. Unencrypted private-network HTTP is disabled."
         case .hosted: "Hosted endpoints must use HTTPS and require explicit consent below."
         }
     }

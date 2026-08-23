@@ -57,11 +57,7 @@ final class WorkspaceOnboardingModelTests: XCTestCase {
         return try WorkspaceProfile(
             displayName: "Hosted",
             endpoint: endpoint,
-            provider: ProviderDescriptor(
-                id: ProviderID(rawValue: "test"),
-                displayName: "Test",
-                capabilities: []
-            )
+            provider: WorkspaceProviderKind.openWebUI.descriptor
         )
     }
 }

@@ -68,13 +68,13 @@ struct HermesRunReviewHost: View {
                 }
         }
         .task(id: accessModel.profile.id) { await accessModel.refresh() }
-        .onDisappear { reviewModel.cancelLoading() }
         .confirmationDialog(
             "Remove this Hermes credential?",
             isPresented: $isCredentialRemovalPresented,
             titleVisibility: .visible
         ) {
             Button("Remove Credential", role: .destructive) {
+                reviewModel.cancelLoading()
                 Task { await accessModel.removeCredential() }
             }
             Button("Cancel", role: .cancel) {}
@@ -205,18 +205,21 @@ private actor WorkspaceHermesRunReviewService: HermesRunReviewServicing {
     let profile: WorkspaceProfile
     let vault: any CredentialVault
     let transport: any ProviderTransport
+    let streamingTransport: any HermesEventStreamingTransport
 
     init(
         profile: WorkspaceProfile,
         vault: any CredentialVault = KeychainCredentialVault(),
-        transport: any ProviderTransport = URLSessionProviderTransport()
+        transport: any ProviderTransport = URLSessionProviderTransport(),
+        streamingTransport: any HermesEventStreamingTransport = URLSessionHermesEventStreamingTransport()
     ) {
         self.profile = profile
         self.vault = vault
         self.transport = transport
+        self.streamingTransport = streamingTransport
     }
 
-    func loadSnapshot(for runID: HermesRunID) async throws -> HermesRunReviewSnapshot {
+    func openReview(for runID: HermesRunID) async throws -> HermesRunReviewSession {
         guard profile.provider.id == HermesProvider.descriptor.id,
               profile.provider.supports(.hermesSessions) else {
             throw WorkspaceConnectionServiceError.publicDiscoveryUnavailable
@@ -229,6 +232,14 @@ private actor WorkspaceHermesRunReviewService: HermesRunReviewServicing {
             endpoint: profile.endpoint,
             credential: credential
         )
-        return try await HermesAPIReadOnlyReviewService(client: client).loadSnapshot(for: runID)
+        let streamingClient = HermesEventStreamingClient(
+            transport: streamingTransport,
+            endpoint: profile.endpoint,
+            credential: credential
+        )
+        return try await HermesAPIReadOnlyReviewService(
+            client: client,
+            streamingClient: streamingClient
+        ).openReview(for: runID)
     }
 }

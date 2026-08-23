@@ -6,30 +6,58 @@ import WarRoomHermes
 @MainActor
 final class HermesRunReviewModelTests: XCTestCase {
     func testEmptyIdentifierDoesNotCallService() async {
-        let service = HermesRunReviewServiceStub(mode: .success(events: []))
+        let service = HermesRunReviewServiceStub(mode: .finished(events: []))
         let model = HermesRunReviewModel(service: service)
 
         model.startLoading()
         await model.waitForCurrentLoad()
 
-        XCTAssertEqual(model.phase, .failed("Enter a valid opaque run identifier."))
+        XCTAssertEqual(
+            model.phase,
+            .failed("Enter a valid opaque run identifier.", partialSnapshot: nil)
+        )
         let callCount = await service.callCount
         XCTAssertEqual(callCount, 0)
     }
 
-    func testLoadsStatusAndBufferedEventsWithoutExposingRunID() async throws {
+    func testPublishesIncrementalEventBeforeStreamFinishes() async throws {
         let runID = try XCTUnwrap(HermesRunID(rawValue: "sensitive-opaque-value"))
-        var parser = HermesSSEParser()
-        let unknownEvents = try parser.append(
-            Data("data: {\"event\":\"future.safe\",\"secret\":\"discarded\"}\n\n".utf8)
+        let event = HermesRunEvent.reasoningAvailable(
+            HermesEventMetadata(runID: runID, timestamp: "2026-08-23T12:00:00Z")
         )
-        let unknownEvent = try XCTUnwrap(unknownEvents.first)
-        let events: [HermesRunEvent] = [
-            .runCompleted(HermesEventMetadata(runID: runID, timestamp: "2026-08-23T12:00:00Z")),
-            unknownEvent,
-        ]
-        let service = HermesRunReviewServiceStub(mode: .success(events: events))
+        let service = HermesRunReviewServiceStub(mode: .pending(events: [event]))
         let model = HermesRunReviewModel(service: service)
+        model.runIDInput = runID.rawValue
+
+        model.startLoading()
+        await eventually {
+            model.phase == HermesRunReviewModel.Phase.live(
+                HermesRunReviewSnapshot(status: .running, events: [event])
+            )
+        }
+
+        XCTAssertEqual(
+            model.phase,
+            HermesRunReviewModel.Phase.live(
+                HermesRunReviewSnapshot(status: .running, events: [event])
+            )
+        )
+        XCTAssertFalse(String(describing: model.phase).contains(runID.rawValue))
+        model.cancelLoading()
+        await model.waitForCurrentLoad()
+        await eventually { await service.streamTerminationCount == 1 }
+        let terminationCount = await service.currentStreamTerminationCount()
+        XCTAssertEqual(terminationCount, 1)
+    }
+
+    func testTerminalEventCompletesReviewAndUpdatesStatus() async throws {
+        let runID = try XCTUnwrap(HermesRunID(rawValue: "opaque-complete"))
+        let event = HermesRunEvent.runCompleted(
+            HermesEventMetadata(runID: runID, timestamp: "2026-08-23T12:00:00Z")
+        )
+        let model = HermesRunReviewModel(
+            service: HermesRunReviewServiceStub(mode: .pending(events: [event]))
+        )
         model.runIDInput = runID.rawValue
 
         model.startLoading()
@@ -37,17 +65,14 @@ final class HermesRunReviewModelTests: XCTestCase {
 
         XCTAssertEqual(
             model.phase,
-            .loaded(HermesRunReviewSnapshot(status: .running, events: events))
+            .completed(HermesRunReviewSnapshot(status: .completed, events: [event]))
         )
-        let callCount = await service.callCount
-        XCTAssertEqual(callCount, 1)
-        XCTAssertFalse(String(describing: model.phase).contains(runID.rawValue))
     }
 
-    func testSuccessfulRunWithNoEventsKeepsExplicitEmptySnapshot() async throws {
+    func testStreamCompletionWithoutTerminalEventHasExplicitCompletedState() async throws {
         let runID = try XCTUnwrap(HermesRunID(rawValue: "opaque-empty-events"))
         let model = HermesRunReviewModel(
-            service: HermesRunReviewServiceStub(mode: .success(events: []))
+            service: HermesRunReviewServiceStub(mode: .finished(events: []))
         )
         model.runIDInput = runID.rawValue
 
@@ -56,34 +81,61 @@ final class HermesRunReviewModelTests: XCTestCase {
 
         XCTAssertEqual(
             model.phase,
-            .loaded(HermesRunReviewSnapshot(status: .running, events: []))
+            .completed(HermesRunReviewSnapshot(status: .running, events: []))
         )
     }
 
-    func testServiceErrorIsSanitizedAndRetrySucceeds() async throws {
+    func testRetentionDropsOldestEventsAndReportsDiscardCount() async throws {
+        let runID = try XCTUnwrap(HermesRunID(rawValue: "opaque-bounded"))
+        let events = (1...5).map { value in
+            HermesRunEvent.reasoningAvailable(
+                HermesEventMetadata(runID: runID, timestamp: "event-\(value)")
+            )
+        }
+        let model = HermesRunReviewModel(
+            service: HermesRunReviewServiceStub(mode: .finished(events: events)),
+            maximumRetainedEvents: 3
+        )
+        model.runIDInput = runID.rawValue
+
+        model.startLoading()
+        await model.waitForCurrentLoad()
+
+        let expected = HermesRunReviewSnapshot(
+            status: .running,
+            events: Array(events.suffix(3)),
+            discardedEventCount: 2
+        )
+        XCTAssertEqual(model.phase, HermesRunReviewModel.Phase.completed(expected))
+    }
+
+    func testStreamErrorIsSanitizedAndRetainsOnlyVerifiedPartialEvents() async throws {
         let runID = try XCTUnwrap(HermesRunID(rawValue: "must-not-appear-in-error"))
-        let service = HermesRunReviewServiceStub(mode: .failure)
+        let event = HermesRunEvent.reasoningAvailable(
+            HermesEventMetadata(runID: runID, timestamp: nil)
+        )
+        let service = HermesRunReviewServiceStub(mode: .streamFailure(
+            events: [event],
+            message: "provider failed for \(runID.rawValue) token-secret"
+        ))
         let model = HermesRunReviewModel(service: service)
         model.runIDInput = runID.rawValue
 
         model.startLoading()
         await model.waitForCurrentLoad()
 
-        guard case .failed(let message) = model.phase else {
+        guard case .failed(let message, let partialSnapshot) = model.phase else {
             return XCTFail("Expected failed state")
         }
-        XCTAssertFalse(message.contains(runID.rawValue))
         XCTAssertEqual(
             message,
             "Unable to load this Hermes run. No run identifier was included in this error."
         )
-
-        await service.setMode(.success(events: []))
-        model.retry()
-        await model.waitForCurrentLoad()
+        XCTAssertFalse(message.contains(runID.rawValue))
+        XCTAssertFalse(message.contains("token-secret"))
         XCTAssertEqual(
-            model.phase,
-            .loaded(HermesRunReviewSnapshot(status: .running, events: []))
+            partialSnapshot,
+            HermesRunReviewSnapshot(status: .running, events: [event])
         )
     }
 
@@ -109,32 +161,24 @@ final class HermesRunReviewModelTests: XCTestCase {
         model.runIDInput = firstRunID.rawValue
 
         model.startLoading()
-        for _ in 0..<100 {
-            if await service.callCount == 1 { break }
-            await Task.yield()
-        }
-        let firstLoadCallCount = await service.callCount
-        XCTAssertEqual(firstLoadCallCount, 1)
-        await service.setMode(.success(events: []))
+        await eventually { await service.callCount == 1 }
+        await service.setMode(.finished(events: []))
         model.runIDInput = secondRunID.rawValue
         model.startLoading()
         await model.waitForCurrentLoad()
 
-        XCTAssertEqual(
-            model.phase,
-            .loaded(HermesRunReviewSnapshot(status: .running, events: []))
+        let expected = HermesRunReviewModel.Phase.completed(
+            HermesRunReviewSnapshot(status: .running, events: [])
         )
+        XCTAssertEqual(model.phase, expected)
         try await Task.sleep(for: .milliseconds(150))
-        XCTAssertEqual(
-            model.phase,
-            .loaded(HermesRunReviewSnapshot(status: .running, events: []))
-        )
+        XCTAssertEqual(model.phase, expected)
     }
 
     func testRecentRunPickerUsesOpaqueSelectionWithoutDisplayContract() throws {
         let runID = try XCTUnwrap(HermesRunID(rawValue: "opaque-recent"))
         let model = HermesRunReviewModel(
-            service: HermesRunReviewServiceStub(mode: .success(events: [])),
+            service: HermesRunReviewServiceStub(mode: .finished(events: [])),
             recentRuns: [runID]
         )
 
@@ -144,18 +188,36 @@ final class HermesRunReviewModelTests: XCTestCase {
         XCTAssertEqual(model.runIDInput, runID.rawValue)
         XCTAssertEqual(model.recentRuns.count, 1)
     }
+
+    private func eventually(
+        _ condition: @escaping @MainActor () async -> Bool,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        for _ in 0..<1_000 {
+            if await condition() { return }
+            await Task.yield()
+        }
+        XCTFail("Condition was not satisfied", file: file, line: line)
+    }
 }
 
 private actor HermesRunReviewServiceStub: HermesRunReviewServicing {
     enum Mode: Sendable {
-        case success(events: [HermesRunEvent])
-        case failure
+        case finished(events: [HermesRunEvent])
+        case pending(events: [HermesRunEvent])
+        case streamFailure(events: [HermesRunEvent], message: String)
         case delayed
         case delayedIgnoringCancellation
     }
 
     private var mode: Mode
     private(set) var callCount = 0
+    private let terminationProbe = HermesStreamTerminationProbe()
+
+    var streamTerminationCount: Int {
+        get async { await terminationProbe.count }
+    }
 
     init(mode: Mode) {
         self.mode = mode
@@ -165,20 +227,73 @@ private actor HermesRunReviewServiceStub: HermesRunReviewServicing {
         self.mode = mode
     }
 
-    func loadSnapshot(for runID: HermesRunID) async throws -> HermesRunReviewSnapshot {
+    func currentStreamTerminationCount() async -> Int {
+        await terminationProbe.count
+    }
+
+    func openReview(for runID: HermesRunID) async throws -> HermesRunReviewSession {
         callCount += 1
-        switch mode {
-        case .success(let events):
-            return HermesRunReviewSnapshot(status: .running, events: events)
-        case .failure:
-            throw HermesRunReviewTestError.service("failed for \(runID.rawValue)")
+        let activeMode = mode
+        switch activeMode {
+        case .finished(let events):
+            return HermesRunReviewSession(status: .running, events: stream(events: events))
+        case .pending(let events):
+            return HermesRunReviewSession(status: .running, events: pendingStream(events: events))
+        case .streamFailure(let events, let message):
+            return HermesRunReviewSession(
+                status: .running,
+                events: stream(events: events, failure: HermesRunReviewTestError.service(message))
+            )
         case .delayed:
             try await Task.sleep(for: .seconds(30))
-            return HermesRunReviewSnapshot(status: .running, events: [])
+            return HermesRunReviewSession(status: .running, events: stream(events: []))
         case .delayedIgnoringCancellation:
             try? await Task.sleep(for: .milliseconds(100))
-            return HermesRunReviewSnapshot(status: .running, events: [])
+            return HermesRunReviewSession(status: .running, events: stream(events: []))
         }
+    }
+
+    private func stream(
+        events: [HermesRunEvent],
+        failure: Error? = nil
+    ) -> AsyncThrowingStream<HermesRunEvent, Error> {
+        AsyncThrowingStream { continuation in
+            events.forEach { continuation.yield($0) }
+            if let failure {
+                continuation.finish(throwing: failure)
+            } else {
+                continuation.finish()
+            }
+        }
+    }
+
+    private func pendingStream(
+        events: [HermesRunEvent]
+    ) -> AsyncThrowingStream<HermesRunEvent, Error> {
+        let terminationProbe = terminationProbe
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                events.forEach { continuation.yield($0) }
+                do {
+                    try await Task.sleep(for: .seconds(30))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: CancellationError())
+                }
+            }
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+                Task { await terminationProbe.markTerminated() }
+            }
+        }
+    }
+}
+
+private actor HermesStreamTerminationProbe {
+    private(set) var count = 0
+
+    func markTerminated() {
+        count += 1
     }
 }
 

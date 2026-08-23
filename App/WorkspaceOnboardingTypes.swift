@@ -20,7 +20,7 @@ enum WorkspaceProviderKind: String, CaseIterable, Equatable, Sendable {
     var detail: String {
         switch self {
         case .openWebUI: "Discover health, configuration, and protected models."
-        case .hermes: "Review run status and buffered events without mutating controls."
+        case .hermes: "Review run status and live events without mutating controls."
         case .meshStack: "Review fleet, topology, and event status without control-plane actions."
         }
     }

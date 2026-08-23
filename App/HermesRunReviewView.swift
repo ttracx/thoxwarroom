@@ -19,6 +19,7 @@ struct HermesRunReviewView: View {
             }
         }
         .tint(ThoxTheme.accent)
+        .onDisappear { model.cancelLoading() }
         .accessibilityIdentifier("hermes-run-review")
     }
 
@@ -26,7 +27,7 @@ struct HermesRunReviewView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Hermes run review", systemImage: "eye.fill")
                 .font(.title2.weight(.semibold))
-            Text("Read-only • Buffered event snapshot")
+            Text("Read-only • Live event review")
                 .font(.callout.weight(.medium))
                 .foregroundStyle(ThoxTheme.accent)
             Text("Review status and event provenance. Approval and stop actions are unavailable in this surface.")
@@ -44,8 +45,8 @@ struct HermesRunReviewView: View {
                     model.startLoading()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(model.phase == .loading)
-                .accessibilityHint("Loads read-only status and buffered Hermes events")
+                .disabled(isReviewActive)
+                .accessibilityHint("Loads read-only status and follows live Hermes events")
                 .accessibilityIdentifier("load-hermes-run")
             }
             if !model.recentRuns.isEmpty {
@@ -100,14 +101,14 @@ struct HermesRunReviewView: View {
             reviewState(
                 icon: "tray",
                 title: "No run selected",
-                detail: "Enter or select a run identifier to load a read-only snapshot."
+                detail: "Enter or select a run identifier to load status and follow live events."
             ) { EmptyView() }
                 .accessibilityIdentifier("hermes-review-empty")
         case .loading:
             reviewState(
                 icon: "arrow.triangle.2.circlepath",
                 title: "Loading run…",
-                detail: "Fetching status and buffered events from the selected Hermes workspace."
+                detail: "Loading status and opening a live event stream from the selected Hermes workspace."
             ) {
                 HStack {
                     ProgressView()
@@ -116,30 +117,47 @@ struct HermesRunReviewView: View {
                 }
             }
             .accessibilityIdentifier("hermes-review-loading")
-        case .failed(let message):
-            reviewState(icon: "exclamationmark.triangle", title: "Run unavailable", detail: message) {
-                Button("Retry") { model.retry() }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("retry-hermes-load")
+        case .failed(let message, let partialSnapshot):
+            VStack(alignment: .leading, spacing: 14) {
+                reviewState(icon: "exclamationmark.triangle", title: "Live review ended with an error", detail: message) {
+                    Button("Retry") { model.retry() }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("retry-hermes-load")
+                }
+                if let partialSnapshot {
+                    snapshotContent(partialSnapshot, streamState: "Partial events retained")
+                }
             }
             .accessibilityIdentifier("hermes-review-error")
         case .cancelled:
             reviewState(
                 icon: "xmark.circle",
                 title: "Load cancelled",
-                detail: "No event snapshot was retained."
+                detail: "The live connection was closed and no review data was retained."
             ) {
                 Button("Retry") { model.retry() }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("retry-cancelled-hermes-load")
             }
             .accessibilityIdentifier("hermes-review-cancelled")
-        case .loaded(let snapshot):
-            snapshotContent(snapshot)
+        case .live(let snapshot):
+            snapshotContent(snapshot, streamState: "Live")
+        case .completed(let snapshot):
+            snapshotContent(snapshot, streamState: "Review complete")
         }
     }
 
-    private func snapshotContent(_ snapshot: HermesRunReviewSnapshot) -> some View {
+    private var isReviewActive: Bool {
+        switch model.phase {
+        case .loading, .live: true
+        default: false
+        }
+    }
+
+    private func snapshotContent(
+        _ snapshot: HermesRunReviewSnapshot,
+        streamState: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Label("Run status", systemImage: "circle.fill")
@@ -154,9 +172,25 @@ struct HermesRunReviewView: View {
                 .foregroundStyle(.secondary)
 
             Divider()
-            Text("Buffered events").font(.headline)
+            HStack {
+                Text("Live events").font(.headline)
+                Spacer()
+                Text(streamState)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(streamState == "Live" ? ThoxTheme.accent : Color.secondary)
+            }
+            if streamState == "Live" {
+                Button("Cancel live review") { model.cancelLoading() }
+                    .accessibilityIdentifier("cancel-hermes-live-review")
+            }
+            if snapshot.discardedEventCount > 0 {
+                Text("Showing the newest \(snapshot.events.count) events. \(snapshot.discardedEventCount) older events were discarded on this device.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("hermes-events-retention-notice")
+            }
             if snapshot.events.isEmpty {
-                Label("No events returned for this snapshot.", systemImage: "tray")
+                Label(streamState == "Live" ? "Waiting for the next event…" : "No events were received.", systemImage: "tray")
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("hermes-events-empty")
             } else {
@@ -285,8 +319,8 @@ private struct HermesEventReviewRow: View {
         case .unknown: nil
         }
         if let timestamp {
-            return "Hermes API • Buffered SSE • \(timestamp)"
+            return "Hermes API • Live SSE • \(timestamp)"
         }
-        return "Hermes API • Buffered SSE"
+        return "Hermes API • Live SSE"
     }
 }

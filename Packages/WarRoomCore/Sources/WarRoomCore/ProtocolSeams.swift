@@ -78,6 +78,21 @@ public struct ProviderRequest: Equatable, Sendable {
 
 /// A bounded RFC 3986 unreserved query item intended only for routing and filtering.
 public struct ProviderQueryItem: Equatable, Hashable, Sendable {
+    private static let sensitiveNameTokens: Set<String> = [
+        "auth", "authentication", "authorization", "authn", "authz", "bearer", "cookie",
+        "credential", "jwt", "key", "password", "passwd", "secret", "session", "signature",
+        "token",
+    ]
+    private static let sensitiveCanonicalFragments = [
+        "accesskey", "apikey", "authentication", "authorization", "authcredential",
+        "authheader", "authvalue", "bearer", "clientcredential", "clientsecret", "cookie",
+        "credential", "jwt", "password", "privatekey", "secret", "session", "signature",
+    ]
+    private static let sensitiveCanonicalNames: Set<String> = [
+        "accesskey", "accesstoken", "apikey", "bearertoken", "csrftoken", "idtoken",
+        "privatekey", "refreshtoken", "secretkey", "sessionid", "sessionkey", "xsrftoken",
+    ]
+
     public let name: String
     public let value: String
 
@@ -85,7 +100,8 @@ public struct ProviderQueryItem: Equatable, Hashable, Sendable {
         guard (1...64).contains(name.utf8.count),
               (1...512).contains(value.utf8.count),
               Self.isUnreserved(name),
-              Self.isUnreserved(value) else {
+              Self.isUnreserved(value),
+              !Self.containsSensitiveNameFragment(name) else {
             throw ProviderQueryItemError.invalidComponent
         }
         self.name = name
@@ -99,6 +115,46 @@ public struct ProviderQueryItem: Equatable, Hashable, Sendable {
                 || (byte >= 48 && byte <= 57)
                 || byte == 45 || byte == 46 || byte == 95 || byte == 126
         }
+    }
+
+    private static func containsSensitiveNameFragment(_ name: String) -> Bool {
+        let tokens = nameTokens(name)
+        if !sensitiveNameTokens.isDisjoint(with: tokens) {
+            return true
+        }
+
+        let canonicalName = name.lowercased().filter { $0.isLetter || $0.isNumber }
+        return sensitiveCanonicalNames.contains(canonicalName)
+            || sensitiveCanonicalFragments.contains(where: canonicalName.contains)
+            || (canonicalName.contains("token") && !canonicalName.contains("tokenizer"))
+    }
+
+    private static func nameTokens(_ name: String) -> Set<String> {
+        var tokens: Set<String> = []
+        var current = ""
+        var previousWasLowercaseOrNumber = false
+
+        func finishToken() {
+            if !current.isEmpty {
+                tokens.insert(current.lowercased())
+                current = ""
+            }
+        }
+
+        for character in name {
+            if character == "_" || character == "-" || character == "." || character == "~" {
+                finishToken()
+                previousWasLowercaseOrNumber = false
+                continue
+            }
+            if character.isUppercase && previousWasLowercaseOrNumber {
+                finishToken()
+            }
+            current.append(character)
+            previousWasLowercaseOrNumber = character.isLowercase || character.isNumber
+        }
+        finishToken()
+        return tokens
     }
 }
 

@@ -33,13 +33,32 @@ final class ProtocolSeamTests: XCTestCase {
         )
         XCTAssertEqual(request.queryItems, [meshID, limit])
 
-        for (name, value) in [
+        let rejectedItems = [
             ("", "value"),
+            ("access_token", "opaque"),
+            ("accessToken", "opaque"),
+            ("ACCESS-TOKEN", "opaque"),
+            ("accesstoken", "opaque"),
+            ("api_key", "opaque"),
+            ("apiKey", "opaque"),
+            ("apikey", "opaque"),
+            ("apikeyversion", "opaque"),
+            ("Authorization", "opaque"),
+            ("auth", "opaque"),
+            ("authheader", "opaque"),
+            ("jwtclaims", "opaque"),
+            ("session.id", "opaque"),
+            ("clientSecret", "opaque"),
             ("token", "secret value"),
             ("redirect", "https://evil.example"),
             ("line", "one\ntwo"),
-        ] {
+        ]
+        for (name, value) in rejectedItems {
             XCTAssertThrowsError(try ProviderQueryItem(name: name, value: value))
+        }
+
+        for allowedName in ["author_name", "keyboard_layout", "monkey_id", "tokenizer_mode"] {
+            XCTAssertNoThrow(try ProviderQueryItem(name: allowedName, value: "safe"), allowedName)
         }
         XCTAssertThrowsError(try ProviderRequest(
             method: .get,

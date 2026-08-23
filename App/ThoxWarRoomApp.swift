@@ -34,7 +34,9 @@ struct ThoxWarRoomApp: App {
             ContentView()
                 .environmentObject(webViewModel)
                 .preferredColorScheme(.dark)
+                #if os(macOS)
                 .frame(minWidth: 720, minHeight: 480)
+                #endif
         }
         #if os(macOS)
         .windowStyle(.titleBar)

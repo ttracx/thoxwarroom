@@ -13,10 +13,10 @@
 #   SKIP_GEN_ICONS  Skip icon regeneration
 #   APPLE_ID        Apple ID for altool auth
 #   APPLE_PASSWORD  App-specific password
-#   API_KEY_ID      App Store Connect API key ID (TKYHH5J4C3)
-#   API_ISSUER_ID   App Store Connect API issuer ID
-#                   (c97d7004-992d-49d4-b2a2-bcab1e090187)
-#   ASC_API_KEY_P8  Path to .p8 API key (overrides ID/password)
+#   ASC_API_KEY_ID       App Store Connect API key ID
+#   ASC_API_ISSUER_ID    App Store Connect API issuer ID
+#   ASC_API_KEY_P8       Path to the matching private .p8 key
+#   VALIDATE_CREDENTIALS_ONLY  Validate the ASC key locally, then exit
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -27,8 +27,41 @@ PROJECT_NAME="ThoxWarRoom"
 SCHEME="ThoxWarRoom iOS"
 TEAM_ID=${APPLE_TEAM_ID:-DVJ6Z5343U}
 BUNDLE_ID="ai.thox.warroom"
-API_KEY_ID=${API_KEY_ID:-TKYHH5J4C3}
-API_ISSUER_ID=${API_ISSUER_ID:-c97d7004-992d-49d4-b2a2-bcab1e090187}
+
+validate_asc_credentials() {
+    if [ -z "${ASC_API_KEY_ID:-}" ] || [ -z "${ASC_API_ISSUER_ID:-}" ] || [ -z "${ASC_API_KEY_P8:-}" ]; then
+        echo "ERROR: ASC API authentication requires ASC_API_KEY_ID, ASC_API_ISSUER_ID, and ASC_API_KEY_P8" >&2
+        return 1
+    fi
+    if [ ! -f "$ASC_API_KEY_P8" ] || [ ! -r "$ASC_API_KEY_P8" ]; then
+        echo "ERROR: ASC_API_KEY_P8 must reference a readable regular file" >&2
+        return 1
+    fi
+    case "$ASC_API_KEY_P8" in
+        *.p8) ;;
+        *) echo "ERROR: ASC_API_KEY_P8 must reference a .p8 file" >&2; return 1 ;;
+    esac
+    xcrun altool --generate-jwt \
+        --api-key "$ASC_API_KEY_ID" \
+        --api-issuer "$ASC_API_ISSUER_ID" \
+        --p8-file-path "$ASC_API_KEY_P8" >/dev/null
+    echo "==> App Store Connect API credential structure validated"
+}
+
+if [ -n "${VALIDATE_CREDENTIALS_ONLY:-}" ]; then
+    validate_asc_credentials
+    exit 0
+fi
+
+XCODE_AUTH_ARGS=()
+if [ -n "${ASC_API_KEY_ID:-}${ASC_API_ISSUER_ID:-}${ASC_API_KEY_P8:-}" ]; then
+    validate_asc_credentials
+    XCODE_AUTH_ARGS=(
+        -authenticationKeyPath "$ASC_API_KEY_P8"
+        -authenticationKeyID "$ASC_API_KEY_ID"
+        -authenticationKeyIssuerID "$ASC_API_ISSUER_ID"
+    )
+fi
 
 echo "==> Regenerating Xcode project"
 xcodegen generate --quiet
@@ -37,6 +70,9 @@ if [ -z "${SKIP_GEN_ICONS:-}" ]; then
     echo "==> Regenerating app icons"
     python3 scripts/gen_appiconset.py
 fi
+
+echo "==> Validating app icon catalogs"
+python3 scripts/validate_appiconsets.py
 
 mkdir -p "$BUILD_DIR"
 
@@ -52,6 +88,7 @@ xcodebuild \
     DEVELOPMENT_TEAM="$TEAM_ID" \
     CODE_SIGN_IDENTITY="Apple Distribution" \
     -allowProvisioningUpdates \
+    "${XCODE_AUTH_ARGS[@]}" \
     clean archive | tee "$BUILD_DIR/archive.log" >/dev/null
 
 tail -30 "$BUILD_DIR/archive.log"
@@ -96,7 +133,9 @@ xcodebuild \
     -exportArchive \
     -archivePath "$ARCHIVE" \
     -exportPath "$EXPORT_DIR" \
-    -exportOptionsPlist "$EXPORT_OPTIONS" | tee "$BUILD_DIR/export.log" >/dev/null
+    -exportOptionsPlist "$EXPORT_OPTIONS" \
+    -allowProvisioningUpdates \
+    "${XCODE_AUTH_ARGS[@]}" | tee "$BUILD_DIR/export.log" >/dev/null
 
 tail -30 "$BUILD_DIR/export.log"
 
@@ -110,12 +149,13 @@ echo "==> IPA at: $IPA_PATH"
 
 if [ -z "${SKIP_UPLOAD:-}" ]; then
     echo "==> Uploading to TestFlight via xcrun altool"
-    if [ -n "${ASC_API_KEY_P8:-}" ]; then
+    if [ -n "${ASC_API_KEY_ID:-}${ASC_API_ISSUER_ID:-}${ASC_API_KEY_P8:-}" ]; then
         xcrun altool --upload-app \
             --type ios \
             --file "$IPA_PATH" \
-            --apiKey "$API_KEY_ID" \
-            --apiIssuer "$API_ISSUER_ID"
+            --api-key "$ASC_API_KEY_ID" \
+            --api-issuer "$ASC_API_ISSUER_ID" \
+            --p8-file-path "$ASC_API_KEY_P8"
     elif [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_PASSWORD:-}" ]; then
         xcrun altool --upload-app \
             --type ios \
@@ -124,7 +164,8 @@ if [ -z "${SKIP_UPLOAD:-}" ]; then
             --password "$APPLE_PASSWORD"
     else
         echo "ERROR: no upload credentials provided"
-        echo "       Set ASC_API_KEY_P8 (preferred) or APPLE_ID+APPLE_PASSWORD"
+        echo "       Set ASC_API_KEY_ID+ASC_API_ISSUER_ID+ASC_API_KEY_P8 (preferred)"
+        echo "       or APPLE_ID+APPLE_PASSWORD"
         exit 1
     fi
 else

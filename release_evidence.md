@@ -1,5 +1,15 @@
 # Release Evidence
 
+## 2026-08-23 Audit Center iOS and macOS TestFlight build 4 delivery
+
+- Exact pushed source: `4518091bbaf2eff93b8512fb54148b6b0ccf7194` on `main`. Source changes include read-only Hermes operation reconciliation (`455b094`), encrypted workspace audit-policy persistence (`278493f`), native cross-platform Audit Center (`7fcb169`), and fail-closed stale-policy handling (`7422cd8`).
+- Pre-release validation: deterministic Xcode project/assets and privacy manifest checks, tracked-source secret scan, deterministic SPDX generation, 7 Python tests, 214 standalone Swift package tests with warnings as errors, 95 integrated macOS tests, and a generic arm64/x86_64 iOS Simulator test build all passed. The machine's LaunchServices registration child hung during the macOS Xcode stages; only the exact `lsregister` child for each generated ThoxWarRoom app was terminated, after which Xcode recorded registration as skipped and completed successfully.
+- iOS 4.2.0 (4): delivery/build ID `2a89be7a-9cc6-455a-849d-c64f2ba6f42f`; IPA `build/ios-4518091/export/ThoxWarRoom.ipa`; SHA-256 `79e4ed23790b8808e9a4dab2b5bf42905b9076d8577cc7437471fc0ba4848709`. Strict code-sign verification passed; the exported app has `beta-reports-active=true`, `get-task-allow=false`, and `NSFileProtectionComplete`.
+- macOS 4.2.0 (4): delivery/build ID `4f0c7431-3970-4be4-ba97-3bf2c5919e12`; package `build/macos-appstore-4518091/export/ThoxWarRoom.pkg`; SHA-256 `995f6bac4d9324c9c5b3a553c4611d1e8098a49cbb67e58665459a26229d6bef`. Archive strict code-sign verification and installer certificate-chain validation passed; the app binary is universal arm64/x86_64 and the App Store sandbox/no-debug gates passed.
+- Both platform artifacts embed source-revision SPDX SBOM SHA-256 `fe2bc450078bd6bedae4079461d6e229460a57b830281a748b70cb459907a4a8`.
+- App Store Connect processed both records to `VALID`, `IN_BETA_TESTING`, and external `READY_FOR_BETA_SUBMISSION`. Both build IDs were assigned to `THOX AI LLC Internal` (`312308e3-a3d6-4dbf-bc08-c7c1be6081e5`), whose related-build count is now six (iOS/macOS builds 2, 3, and 4).
+- This proves signed upload, Apple processing, and internal-group assignment. It does not prove invitation acceptance, physical iPhone/Mac TestFlight install/launch, authenticated provider workflows, or Developer ID/notarized direct macOS distribution.
+
 ## 2026-08-23 hardened iOS and macOS TestFlight build 3 delivery
 
 - Application source: pushed `main` at `0ce9cd1d27ba3c69b2be6fbfdac15abd221778fd` before both signed builds. The worktree and `origin/main` matched that SHA.

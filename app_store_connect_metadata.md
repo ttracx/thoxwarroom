@@ -18,19 +18,17 @@ evidence is retained separately in `release_evidence.md`.
 | User access | Full Access | Created value |
 | Developer name | THOX AI LLC | Account-controlled value; confirm in the website |
 
-The shared record exists under THOX AI LLC. iOS and macOS build 3 are valid,
+The shared record exists under THOX AI LLC. iOS and macOS build 4 are valid,
 `IN_BETA_TESTING`, and assigned to the `THOX AI LLC Internal` TestFlight group.
-Build 2 remains assigned as prior evidence. The single tester is still invited;
-invitation acceptance and physical install/launch are not observed. Build 4 is
-the current locally validated source candidate and is not claimed delivered
-until separate App Store Connect processing evidence is recorded.
+Builds 2 and 3 remain assigned as prior evidence. The single tester is still
+invited; invitation acceptance and physical install/launch are not observed.
 
 ## Current build identity
 
 | Property | Value |
 |---|---|
 | Marketing version | `4.2.0` |
-| Build number | `4` (source candidate; build 3 remains the latest accepted delivery) |
+| Build number | `4` |
 | Bundle ID | `ai.thox.warroom` |
 | Team | THOX AI LLC (`DVJ6Z5343U`) |
 | iOS minimum | iOS 17 |

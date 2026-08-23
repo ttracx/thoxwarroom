@@ -11,7 +11,7 @@ Evidence must remain separated:
 - **Historical implementation evidence:** tag `v4.1.0` / commit `96ca830` contains the former Flutter product and its Hermes, War Room, chat, automation, workspace, memory, insights, and platform modules. This is useful behavior inventory, not current runtime or release evidence.
 - **Current source evidence:** current native packages implement typed, bounded, testable contracts without copying the GPL-era runtime.
 - **Current local validation:** 193 package tests pass with warnings-as-errors; 80 integrated macOS app tests pass; seven Python release/security tests, deterministic project/assets, privacy checks, and the generic iOS Simulator test build pass.
-- **Current signing evidence:** final-source iOS and native macOS App Store build 3 artifacts from pushed SHA `0ce9cd1` uploaded successfully, reached Apple `VALID` / `IN_BETA_TESTING`, and are assigned to the THOX internal TestFlight group.
+- **Current signing evidence:** final-source iOS and native macOS App Store build 4 artifacts from pushed SHA `4518091` uploaded successfully, reached Apple `VALID` / `IN_BETA_TESTING`, and are assigned to the THOX internal TestFlight group.
 - **Current external blockers:** invitation acceptance and physical iPhone/Mac TestFlight execution are unobserved. GitHub jobs stop before all steps because the account is locked by a billing issue. A Developer ID Application certificate is unavailable for direct macOS notarization.
 
 ## Hermes-era inventory and current disposition
@@ -24,7 +24,7 @@ Evidence must remain separated:
 | Workspace | Models, knowledge, tools, skills, file browser | Validated provider profiles encrypted with device-only keys, resumable credential-first deletion, and confined read-only local text browser | Profile revision/CAS, opaque routing index, multi-workspace lifecycle, persisted security-scoped bookmarks |
 | Audit | Event intent in historical features | Redaction-revalidated AES-GCM generations with bounded paging/export, device-only rollback anchor, crash-safe retention, cooperative cross-process serialization, encrypted confirmed-policy persistence, and native explicit apply/export controls | Automatic scheduler, signed export/external anchoring, app mutation wiring |
 | Automations and mutations | Editors, schedules, cards | One-shot coordinator, encrypted operation store, replay rejection, crash reconciliation, and human review UI; production host remains disabled | Verified RBAC/policy and current live mutation contract before transport composition |
-| Platform/release | iOS/macOS integrations and historical workflows | Native targets, deterministic project generation, privacy manifest, SPDX SBOM, valid internally testing iOS/macOS build 3 artifacts | Physical TestFlight install/launch and Developer ID notarized Mac artifact |
+| Platform/release | iOS/macOS integrations and historical workflows | Native targets, deterministic project generation, privacy manifest, SPDX SBOM, valid internally testing iOS/macOS build 4 artifacts | Physical TestFlight install/launch and Developer ID notarized Mac artifact |
 
 The historical modules are not treated as production-ready. Git proves source existed; it does not prove a deployed backend contract, secure workflow, physical-device result, or which agent authored the work. Git records the commits as THOX Engineering/Tommy, not an identity named “Hermes Agent.”
 
@@ -57,7 +57,7 @@ The historical modules are not treated as production-ready. Git proves source ex
 5. Audit locks are advisory and protect only cooperative writers sharing the same app-container lock root; each append remains O(n), with a 10,000-entry/16 MiB cap.
 6. Audit policy persistence/scheduling, signed full-data export, encrypted chat/document history, RBAC, opaque routing indexes, multi-workspace lifecycle, and background deletion recovery remain unfinished.
 7. DNS-rebinding resistance, live endpoint authentication, physical locked-device behavior, and packaged-app workflows are not proven.
-8. iOS and native macOS TestFlight build 3 artifacts are valid and internally testing, but tester invitation acceptance and physical install/launch remain unobserved. Direct macOS release cannot complete without a THOX Developer ID Application signing/notarization path.
+8. iOS and native macOS TestFlight build 4 artifacts are valid and internally testing, but tester invitation acceptance and physical install/launch remain unobserved. Direct macOS release cannot complete without a THOX Developer ID Application signing/notarization path.
 9. Remote CI is not evidence while GitHub jobs have zero steps due the account billing lock.
 10. The historical app is GPL-3.0 while current native `main` is MIT. Legacy implementation source must not be copied without an explicit legal choice.
 

@@ -94,7 +94,7 @@ public struct HermesAPIClient: Sendable {
         try Task.checkCancellation()
         let request = try ProviderRequest(
             method: .get,
-            relativePath: try runPath(runID, suffix: "/events")
+            relativePath: try HermesRunRoute.path(runID, suffix: "/events")
         )
         let response = try await transport.send(request, to: endpoint, credential: credential)
         try Task.checkCancellation()
@@ -120,7 +120,7 @@ public struct HermesAPIClient: Sendable {
         try Task.checkCancellation()
         let providerRequest = try ProviderRequest(
             method: .post,
-            relativePath: try runPath(runID, suffix: "/approval"),
+            relativePath: try HermesRunRoute.path(runID, suffix: "/approval"),
             body: try encodeBounded(request)
         )
         let response = try await transport.send(providerRequest, to: endpoint, credential: credential)
@@ -142,7 +142,7 @@ public struct HermesAPIClient: Sendable {
         try Task.checkCancellation()
         let providerRequest = try ProviderRequest(
             method: .post,
-            relativePath: try runPath(runID, suffix: "/stop")
+            relativePath: try HermesRunRoute.path(runID, suffix: "/stop")
         )
         let response = try await transport.send(providerRequest, to: endpoint, credential: credential)
         try Task.checkCancellation()
@@ -198,27 +198,6 @@ public struct HermesAPIClient: Sendable {
     }
 
     private func runPath(_ runID: HermesRunID, suffix: String = "") throws -> String {
-        guard let segment = percentEncodedPathSegment(runID.rawValue) else {
-            throw HermesClientError.invalidRunRoute
-        }
-        return "/v1/runs/\(segment)\(suffix)"
-    }
-
-    private func percentEncodedPathSegment(_ value: String) -> String? {
-        guard !value.contains("/"), !value.contains("\\"), !value.contains("%"),
-              !value.contains("?"), !value.contains("#"), value != ".", value != ".." else {
-            return nil
-        }
-        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~".utf8)
-        var result = ""
-        for byte in value.utf8 {
-            if allowed.contains(byte) {
-                result.append(Character(UnicodeScalar(byte)))
-            } else {
-                result += String(format: "%%%02X", byte)
-            }
-        }
-        guard !result.isEmpty, !result.localizedCaseInsensitiveContains("%2F") else { return nil }
-        return result
+        try HermesRunRoute.path(runID, suffix: suffix)
     }
 }

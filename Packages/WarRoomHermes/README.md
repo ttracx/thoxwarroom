@@ -14,14 +14,18 @@ storage, UI, or the browser-oriented dashboard/WebSocket transport.
 - `POST /v1/runs/{opaque-id}/approval`
 - `POST /v1/runs/{opaque-id}/stop`
 
-The caller injects a `WarRoomCore.ProviderTransport`, validated endpoint, and
-optional in-memory credential. Request and response bodies are capped at 10 MB.
-SSE parsing is incremental, cancellation-aware, and separately caps individual
-events. `HermesAPIClient.events()` is nevertheless **buffered** because the
-current `ProviderTransport` returns one complete response body. A streaming
-transport seam and live reconnect behavior remain follow-up work and are not
-claimed here. Comments are ignored. Unknown event payloads are discarded; only
-a bounded safe event name may reach audit metadata.
+The caller injects a validated endpoint, optional in-memory credential, and
+either a `WarRoomCore.ProviderTransport` for bounded request/response calls or a
+`HermesEventStreamingTransport` for incremental event delivery. Request and
+response bodies are capped at 10 MB. SSE parsing is incremental,
+cancellation-aware, and separately caps individual events. The legacy
+`HermesAPIClient.events()` remains buffered for compatibility; use
+`HermesEventStreamingClient.events()` when the concrete transport can expose a
+live byte stream. Consumer cancellation terminates the parser task, and the
+transport must cancel its underlying network work when its byte stream is
+terminated. Automatic reconnect and cursor semantics remain follow-up work and
+are not claimed here. Comments are ignored. Unknown event payloads are
+discarded; only a bounded safe event name may reach audit metadata.
 
 The exact capabilities schema and stop response are not live-verified. Their
 models intentionally accept only conservative optional/bounded structures and
@@ -51,5 +55,5 @@ cd Packages/WarRoomHermes
 swift test
 ```
 
-Tests use an in-memory `ProviderTransport` and sanitized fixtures. They make no
-network requests.
+Tests use in-memory buffered and streaming transports plus sanitized fixtures.
+They make no network requests.

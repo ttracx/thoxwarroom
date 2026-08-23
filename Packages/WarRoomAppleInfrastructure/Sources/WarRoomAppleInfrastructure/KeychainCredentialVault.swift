@@ -132,7 +132,7 @@ protocol KeychainItemClient: Sendable {
     func delete(_ query: [String: Any]) -> OSStatus
 }
 
-private struct SystemKeychainItemClient: KeychainItemClient, @unchecked Sendable {
+struct SystemKeychainItemClient: KeychainItemClient, @unchecked Sendable {
     func copyMatching(_ query: [String: Any]) -> KeychainCopyResult {
         var readQuery = query
         readQuery[kSecReturnData as String] = kCFBooleanTrue

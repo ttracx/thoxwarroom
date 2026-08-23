@@ -25,7 +25,7 @@ final class AuditHeadAnchorVaultTests: XCTestCase {
             kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         )
         let encoded = try XCTUnwrap(attributes[kSecValueData as String] as? Data)
-        XCTAssertEqual(encoded.count, Data("THOX-WR-AUDIT-HEAD".utf8).count + 1 + 8 + 32)
+        XCTAssertEqual(encoded.count, Data("THOX-WR-AUDIT-HEAD".utf8).count + 1 + 8 + 8 + 8 + 32)
 
         let nonCanonicalClient = AuditAnchorKeychainClient(initialData: encoded + Data([0]))
         let nonCanonicalVault = KeychainAuditHeadAnchorVault(
@@ -63,6 +63,29 @@ final class AuditHeadAnchorVaultTests: XCTestCase {
             XCTAssertEqual(error as? AuditHeadAnchorVaultError, .missingAnchor)
         }
         XCTAssertEqual(client.addCallCount, 1)
+    }
+
+    func testLegacyAnchorDecodesAsGenerationZeroAndMigratesOnUpdate() async throws {
+        let digest = Data(repeating: 0x3c, count: 32)
+        var legacy = Data("THOX-WR-AUDIT-HEAD".utf8)
+        legacy.append(StoredAuditHeadAnchor.legacySchemaVersion)
+        var count = UInt64(4).bigEndian
+        withUnsafeBytes(of: &count) { legacy.append(contentsOf: $0) }
+        legacy.append(digest)
+        let client = AuditAnchorKeychainClient(initialData: legacy)
+        let vault = KeychainAuditHeadAnchorVault(service: "test.audit-anchor", keychain: client)
+
+        let decoded = try await vault.anchor(for: fixedWorkspaceID())
+
+        XCTAssertEqual(decoded?.ledgerGeneration, 0)
+        XCTAssertEqual(decoded?.entryCount, 4)
+        XCTAssertEqual(decoded?.lifetimeEventCount, 4)
+        XCTAssertEqual(decoded?.headDigest, digest)
+        try await vault.store(try XCTUnwrap(decoded), for: fixedWorkspaceID())
+        XCTAssertEqual(
+            client.currentData?.count,
+            Data("THOX-WR-AUDIT-HEAD".utf8).count + 1 + 8 + 8 + 8 + 32
+        )
     }
 
     func testRejectsMalformedNonCanonicalAndOutOfBoundsAnchors() async throws {
@@ -130,6 +153,8 @@ private final class AuditAnchorKeychainClient: KeychainItemClient, @unchecked Se
     private(set) var addedAttributes: [String: Any]?
     private(set) var addCallCount = 0
     private(set) var updateCallCount = 0
+
+    var currentData: Data? { lock.withLock { itemData } }
 
     init(
         initialData: Data? = nil,

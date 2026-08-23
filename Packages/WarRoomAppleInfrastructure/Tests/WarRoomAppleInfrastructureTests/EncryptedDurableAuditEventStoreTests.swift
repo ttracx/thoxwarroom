@@ -562,6 +562,257 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
         try await holder.value
     }
 
+    func testRetentionPrunesExpiredEventsAcrossAppendOrderAndRejectsPrePruneReplay() async throws {
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        let asOf = Date(timeIntervalSince1970: 10_000_000)
+        let day: Double = 86_400
+        try await store.append(try event(
+            id: "40000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: asOf.timeIntervalSince1970 - 40 * day,
+            action: "old-first"
+        ))
+        try await store.append(try event(
+            id: "40000000-0000-0000-0000-000000000002",
+            workspaceID: workspaceID,
+            occurredAt: asOf.timeIntervalSince1970 - 10 * day,
+            action: "retained-middle"
+        ))
+        try await store.append(try event(
+            id: "40000000-0000-0000-0000-000000000003",
+            workspaceID: workspaceID,
+            occurredAt: asOf.timeIntervalSince1970 - 35 * day,
+            action: "old-last"
+        ))
+        let storedPrePruneRecord = await records.storedRecord(
+            id: EncryptedDurableAuditEventStore.recordID,
+            workspaceID: workspaceID
+        )
+        let prePruneRecord = try XCTUnwrap(storedPrePruneRecord)
+
+        let result = try await store.applyRetention(
+            .finite(try AuditRetentionDays(rawValue: 30)),
+            to: workspaceID,
+            asOf: asOf
+        )
+
+        XCTAssertEqual(result.prunedEventCount, 2)
+        XCTAssertEqual(result.retainedEventCount, 1)
+        XCTAssertEqual(result.lifetimeEventCount, 3)
+        let page = try await store.events(matching: AuditEventQuery(workspaceID: workspaceID))
+        XCTAssertEqual(page.events.map(\.event.action), ["retained-middle"])
+        try await store.append(try event(
+            id: "40000000-0000-0000-0000-000000000004",
+            workspaceID: workspaceID,
+            occurredAt: asOf.timeIntervalSince1970,
+            action: "post-retention"
+        ))
+        let continued = try await store.events(matching: AuditEventQuery(workspaceID: workspaceID))
+        XCTAssertEqual(
+            continued.events.map(\.event.action),
+            ["retained-middle", "post-retention"]
+        )
+        let storedAnchor = await anchors.storedAnchor(for: workspaceID)
+        let anchor = try XCTUnwrap(storedAnchor)
+        XCTAssertEqual(anchor.ledgerGeneration, 1)
+        XCTAssertEqual(anchor.entryCount, 2)
+        XCTAssertEqual(anchor.lifetimeEventCount, 4)
+
+        await records.replace(prePruneRecord)
+        await assertStoreError(.rollbackDetected, store: store, workspaceID: workspaceID)
+    }
+
+    func testRetentionRecoversRecordAheadOfAnchorAfterInjectedAnchorFailure() async throws {
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        let asOf = Date(timeIntervalSince1970: 10_000_000)
+        try await store.append(try event(
+            id: "40000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: asOf.timeIntervalSince1970 - 40 * 86_400,
+            action: "expired"
+        ))
+        try await store.append(try event(
+            id: "40000000-0000-0000-0000-000000000002",
+            workspaceID: workspaceID,
+            occurredAt: asOf.timeIntervalSince1970 - 5 * 86_400,
+            action: "retained"
+        ))
+        await anchors.failNextStore(with: .interactionNotAllowed)
+
+        do {
+            _ = try await store.applyRetention(
+                .finite(try AuditRetentionDays(rawValue: 30)),
+                to: workspaceID,
+                asOf: asOf
+            )
+            XCTFail("Expected post-ciphertext anchor failure")
+        } catch {
+            XCTAssertEqual(error as? EncryptedDurableAuditStoreError, .anchorUnavailable)
+        }
+        let storedStaleAnchor = await anchors.storedAnchor(for: workspaceID)
+        let staleAnchor = try XCTUnwrap(storedStaleAnchor)
+        XCTAssertEqual(staleAnchor.ledgerGeneration, 0)
+
+        let recovered = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let page = try await recovered.events(matching: AuditEventQuery(workspaceID: workspaceID))
+        XCTAssertEqual(page.events.map(\.event.action), ["retained"])
+        let storedAdvancedAnchor = await anchors.storedAnchor(for: workspaceID)
+        let advanced = try XCTUnwrap(storedAdvancedAnchor)
+        XCTAssertEqual(advanced.ledgerGeneration, 1)
+        XCTAssertEqual(advanced.lifetimeEventCount, 2)
+    }
+
+    func testRetentionSaveFailureLeavesPriorLedgerAndAnchorIntact() async throws {
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        let asOf = Date(timeIntervalSince1970: 10_000_000)
+        try await store.append(try event(
+            id: "40000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: asOf.timeIntervalSince1970 - 40 * 86_400,
+            action: "expired"
+        ))
+        let priorAnchor = await anchors.storedAnchor(for: workspaceID)
+        await records.failNextSave()
+
+        do {
+            _ = try await store.applyRetention(
+                .finite(try AuditRetentionDays(rawValue: 30)),
+                to: workspaceID,
+                asOf: asOf
+            )
+            XCTFail("Expected injected record save failure")
+        } catch {
+            XCTAssertEqual(error as? EncryptedDurableAuditStoreError, .storageUnavailable)
+        }
+        let page = try await store.events(matching: AuditEventQuery(workspaceID: workspaceID))
+        XCTAssertEqual(page.events.map(\.event.action), ["expired"])
+        let finalAnchor = await anchors.storedAnchor(for: workspaceID)
+        XCTAssertEqual(finalAnchor, priorAnchor)
+    }
+
+    func testIndefiniteRetentionVerifiesWithoutRewritingLedger() async throws {
+        let (store, records, _) = makeStore()
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        try await store.append(try event(
+            id: "40000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: 100,
+            action: "kept"
+        ))
+        let savesBefore = await records.saveCount(for: workspaceID)
+
+        let result = try await store.applyRetention(.indefinite, to: workspaceID)
+
+        XCTAssertNil(result.cutoff)
+        XCTAssertEqual(result.prunedEventCount, 0)
+        let savesAfter = await records.saveCount(for: workspaceID)
+        XCTAssertEqual(savesAfter, savesBefore)
+    }
+
+    func testExportIsBoundedIntegrityCommittedAndRemovesStringsPathsAndSecrets() async throws {
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        let first = try PersistableAuditEvent(event: AuditEvent(
+            id: AuditEventID(rawValue: UUID(uuidString: "50000000-0000-0000-0000-000000000001")!),
+            occurredAt: Date(timeIntervalSince1970: 100),
+            workspaceID: workspaceID,
+            category: "workspace/export",
+            action: "read",
+            outcome: .succeeded,
+            fields: [
+                AuditField(key: "token", value: .string("private-token"), privacy: .sensitive),
+                AuditField(key: "path", value: .string("/Users/private/document.txt"), privacy: .nonSensitive),
+                AuditField(key: "boundary", value: .string("localMachine"), privacy: .nonSensitive),
+                AuditField(key: "count", value: .integer(7), privacy: .nonSensitive),
+            ]
+        ))
+        try await store.append(first)
+        try await store.append(try event(
+            id: "50000000-0000-0000-0000-000000000002",
+            workspaceID: workspaceID,
+            occurredAt: 200,
+            action: "second"
+        ))
+        let saveCount = await records.saveCount(for: workspaceID)
+        let generatedAt = Date(timeIntervalSince1970: 300)
+        let request = try AuditExportRequest(
+            workspaceID: workspaceID,
+            occurredOnOrAfter: Date(timeIntervalSince1970: 50),
+            occurredBefore: Date(timeIntervalSince1970: 250),
+            applicationVersion: "1.2.3+45",
+            limit: try AuditExportLimit(rawValue: 1)
+        )
+
+        let snapshot = try await store.exportSnapshot(request, generatedAt: generatedAt)
+
+        XCTAssertEqual(snapshot.schemaVersion, 1)
+        XCTAssertEqual(snapshot.generatedAt, generatedAt)
+        XCTAssertEqual(snapshot.applicationVersion, "1.2.3+45")
+        XCTAssertEqual(snapshot.events.count, 1)
+        XCTAssertTrue(snapshot.truncated)
+        XCTAssertEqual(snapshot.events[0].category, "<redacted>")
+        XCTAssertEqual(snapshot.events[0].metadata["token"], .redacted)
+        XCTAssertEqual(snapshot.events[0].metadata["path"], .redacted)
+        XCTAssertEqual(snapshot.events[0].metadata["boundary"], .redacted)
+        XCTAssertEqual(snapshot.events[0].metadata["count"], .integer(7))
+        XCTAssertEqual(snapshot.integrity.retainedEventCount, 2)
+        XCTAssertEqual(snapshot.integrity.lifetimeEventCount, 2)
+        let savesAfter = await records.saveCount(for: workspaceID)
+        XCTAssertEqual(savesAfter, saveCount)
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        let encoded = try encoder.encode(snapshot)
+        XCTAssertLessThanOrEqual(encoded.count, RedactedAuditExportSnapshot.maximumEncodedBytes)
+        let text = String(decoding: encoded, as: UTF8.self)
+        XCTAssertFalse(text.contains("private-token"))
+        XCTAssertFalse(text.contains("/Users/private"))
+        XCTAssertFalse(text.contains("localMachine"))
+        XCTAssertFalse(text.contains("ciphertext"))
+        XCTAssertFalse(text.contains("keyReference"))
+        XCTAssertFalse(text.contains("authenticationTag"))
+    }
+
     private func makeStore() -> (
         EncryptedDurableAuditEventStore,
         AuditMemoryEncryptedRecordStore,
@@ -727,6 +978,7 @@ private actor AuditMemoryEncryptedRecordStore: EncryptedWorkspaceDataStore {
     private var saves: [WorkspaceID: Int] = [:]
     private let anchorObservedAtSave: AuditMemoryHeadAnchorVault?
     private var firstSaveAnchor: StoredAuditHeadAnchor?
+    private var shouldFailNextSave = false
 
     init(anchorObservedAtSave: AuditMemoryHeadAnchorVault? = nil) {
         self.anchorObservedAtSave = anchorObservedAtSave
@@ -749,7 +1001,11 @@ private actor AuditMemoryEncryptedRecordStore: EncryptedWorkspaceDataStore {
             .prefix(limit.rawValue))
     }
 
-    func save(_ record: EncryptedWorkspaceRecord) async {
+    func save(_ record: EncryptedWorkspaceRecord) async throws {
+        if shouldFailNextSave {
+            shouldFailNextSave = false
+            throw AuditInjectedFailure.save
+        }
         if firstSaveAnchor == nil, let anchorObservedAtSave {
             firstSaveAnchor = try? await anchorObservedAtSave.anchor(for: record.workspaceID)
         }
@@ -779,6 +1035,14 @@ private actor AuditMemoryEncryptedRecordStore: EncryptedWorkspaceDataStore {
     func anchorSeenAtFirstSave() -> StoredAuditHeadAnchor? {
         firstSaveAnchor
     }
+
+    func failNextSave() {
+        shouldFailNextSave = true
+    }
+}
+
+private enum AuditInjectedFailure: Error {
+    case save
 }
 
 private actor AuditMemoryMasterKeyVault: WorkspaceMasterKeyProviding {

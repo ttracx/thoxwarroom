@@ -6,6 +6,7 @@ struct ContentView: View {
         case hostedCompatibility
         case providerConnection(WorkspaceProfile)
         case hermesReview(WorkspaceProfile)
+        case warRoomDashboard(WorkspaceProfile)
     }
 
     @EnvironmentObject private var webViewModel: ThoxWebViewModel
@@ -33,13 +34,16 @@ struct ContentView: View {
             WorkspaceConnectionHost(profile: profile) { destination = nil }
         case .hermesReview(let profile):
             HermesRunReviewHost(profile: profile) { destination = nil }
+        case .warRoomDashboard(let profile):
+            WarRoomDashboardHost(profile: profile) { destination = nil }
         case nil:
             WorkspaceOnboardingView(
                 model: onboardingModel,
                 onOpenNativeFeature: { profile in
-                    switch WorkspaceProviderKind(providerID: profile.provider.id) {
-                    case .openWebUI: destination = .providerConnection(profile)
-                    case .hermes: destination = .hermesReview(profile)
+                    switch WorkspaceNativeFeatureRoute(profile: profile) {
+                    case .openWebUIConnection: destination = .providerConnection(profile)
+                    case .hermesReview: destination = .hermesReview(profile)
+                    case .warRoomDashboard: destination = .warRoomDashboard(profile)
                     case nil: break
                     }
                 },

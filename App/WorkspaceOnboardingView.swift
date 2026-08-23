@@ -256,8 +256,8 @@ private struct WorkspaceReadyView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             HStack {
-                if let providerKind = WorkspaceProviderKind(providerID: configuration.provider.id) {
-                    Button(providerKind == .openWebUI ? "Open provider connection" : "Open run review") {
+                if let nativeRoute = WorkspaceNativeFeatureRoute(profile: configuration) {
+                    Button(nativeRoute.buttonTitle) {
                         onOpenNativeFeature()
                     }
                     .buttonStyle(.borderedProminent)

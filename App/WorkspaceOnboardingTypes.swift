@@ -1,16 +1,19 @@
 import Foundation
 import WarRoomCore
 import WarRoomHermes
+import WarRoomMesh
 import WarRoomOpenWebUI
 
 enum WorkspaceProviderKind: String, CaseIterable, Equatable, Sendable {
     case openWebUI
     case hermes
+    case meshStack
 
     var title: String {
         switch self {
         case .openWebUI: "Open WebUI"
         case .hermes: "Hermes Agent"
+        case .meshStack: "MeshStack War Room"
         }
     }
 
@@ -18,6 +21,7 @@ enum WorkspaceProviderKind: String, CaseIterable, Equatable, Sendable {
         switch self {
         case .openWebUI: "Discover health, configuration, and protected models."
         case .hermes: "Review run status and buffered events without mutating controls."
+        case .meshStack: "Review fleet, topology, and event status without control-plane actions."
         }
     }
 
@@ -25,6 +29,7 @@ enum WorkspaceProviderKind: String, CaseIterable, Equatable, Sendable {
         switch self {
         case .openWebUI: OpenWebUIProvider.descriptor
         case .hermes: HermesProvider.descriptor
+        case .meshStack: MeshProvider.descriptor
         }
     }
 
@@ -40,6 +45,8 @@ enum WorkspaceProviderKind: String, CaseIterable, Equatable, Sendable {
                 allowedHTTPPorts: [80, 8_000, 8_080, 8_642],
                 allowedHTTPSPorts: [443, 8_443]
             )
+        case .meshStack:
+            .secureDefault
         }
     }
 
@@ -47,7 +54,40 @@ enum WorkspaceProviderKind: String, CaseIterable, Equatable, Sendable {
         switch providerID.rawValue {
         case OpenWebUIProvider.descriptor.id.rawValue, "workspace-provider": self = .openWebUI
         case HermesProvider.descriptor.id.rawValue: self = .hermes
+        case MeshProvider.descriptor.id.rawValue: self = .meshStack
         default: return nil
+        }
+    }
+}
+
+enum WorkspaceNativeFeatureRoute: Equatable, Sendable {
+    case openWebUIConnection
+    case hermesReview
+    case warRoomDashboard
+
+    init?(profile: WorkspaceProfile) {
+        guard let providerKind = WorkspaceProviderKind(providerID: profile.provider.id) else {
+            return nil
+        }
+        switch providerKind {
+        case .openWebUI:
+            let isLegacyProfile = profile.provider.id.rawValue == "workspace-provider"
+            guard isLegacyProfile || profile.provider.supports(.modelCatalog) else { return nil }
+            self = .openWebUIConnection
+        case .hermes:
+            guard profile.provider.supports(.hermesSessions) else { return nil }
+            self = .hermesReview
+        case .meshStack:
+            guard profile.provider.supports(.warRoomStatus) else { return nil }
+            self = .warRoomDashboard
+        }
+    }
+
+    var buttonTitle: String {
+        switch self {
+        case .openWebUIConnection: "Open provider connection"
+        case .hermesReview: "Open run review"
+        case .warRoomDashboard: "Open War Room dashboard"
         }
     }
 }

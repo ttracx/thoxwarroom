@@ -79,6 +79,13 @@ public struct AuditEventCursor: Equatable, Hashable, Codable, Sendable,
     public var description: String { "<redacted-audit-cursor>" }
     public var debugDescription: String { "AuditEventCursor(<redacted>)" }
 
+    /// Grants temporary read access for persistence implementations without changing redacted descriptions.
+    public func withUnsafeBytes<Result>(
+        _ body: (UnsafeRawBufferPointer) throws -> Result
+    ) rethrows -> Result {
+        try value.withUnsafeBytes(body)
+    }
+
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         do {

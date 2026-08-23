@@ -29,6 +29,18 @@ final class DurableAuditPersistenceTests: XCTestCase {
         XCTAssertFalse(String(describing: cursor).contains("opaque-position"))
     }
 
+    func testCursorProvidesScopedBytesWhileKeepingDescriptionsRedacted() throws {
+        let bytes = Data("store-owned-continuation".utf8)
+        let cursor = try AuditEventCursor(value: bytes)
+
+        let recovered = cursor.withUnsafeBytes { Data($0) }
+
+        XCTAssertEqual(recovered, bytes)
+        XCTAssertEqual(cursor.description, "<redacted-audit-cursor>")
+        XCTAssertEqual(cursor.debugDescription, "AuditEventCursor(<redacted>)")
+        XCTAssertFalse(String(describing: cursor).contains("store-owned-continuation"))
+    }
+
     func testDecodedInputCannotBypassRedactionValidation() throws {
         let safe = AuditEvent(
             workspaceID: .make(),

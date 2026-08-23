@@ -8,9 +8,10 @@ struct WorkspaceConnectionHost: View {
     let onClose: () -> Void
 
     init(profile: WorkspaceProfile, onClose: @escaping () -> Void) {
+        let transports = WorkspaceNetworkTransportComposition.make(for: profile.endpoint)
         _model = StateObject(wrappedValue: WorkspaceConnectionModel(
             profile: profile,
-            service: DefaultWorkspaceConnectionService()
+            service: DefaultWorkspaceConnectionService(transport: transports.provider)
         ))
         self.onClose = onClose
     }
@@ -47,7 +48,11 @@ struct HermesRunReviewHost: View {
 
     init(profile: WorkspaceProfile, onClose: @escaping () -> Void) {
         let vault = KeychainCredentialVault()
-        let credentialService = DefaultWorkspaceConnectionService(credentialVault: vault)
+        let transports = WorkspaceNetworkTransportComposition.make(for: profile.endpoint)
+        let credentialService = DefaultWorkspaceConnectionService(
+            credentialVault: vault,
+            transport: transports.provider
+        )
         _accessModel = StateObject(wrappedValue: HermesCredentialAccessModel(
             profile: profile,
             service: credentialService
@@ -55,7 +60,9 @@ struct HermesRunReviewHost: View {
         _reviewModel = StateObject(wrappedValue: HermesRunReviewModel(
             service: WorkspaceHermesRunReviewService(
                 profile: profile,
-                vault: vault
+                vault: vault,
+                transport: transports.provider,
+                streamingTransport: transports.hermesEvents
             )
         ))
         // Mutating composition remains fail-closed until the app can inject verified

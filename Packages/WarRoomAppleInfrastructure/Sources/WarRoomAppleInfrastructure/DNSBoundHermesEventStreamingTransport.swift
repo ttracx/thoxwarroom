@@ -88,6 +88,16 @@ public struct DNSBoundHermesEventStreamingTransport: HermesEventStreamingTranspo
     private let planner: DNSBoundConnectionPlanner
     private let connectionFactory: any DNSBoundHermesConnectionCreating
 
+    /// Fully validated production defaults for dependency composition sites
+    /// that must remain non-throwing (for example SwiftUI view initializers).
+    public static let secureDefault = DNSBoundHermesEventStreamingTransport(
+        validatedPolicy: .secureDefault,
+        limits: .secureDefault,
+        maximumRedirects: 3,
+        planner: DNSBoundConnectionPlanner(),
+        connectionFactory: NetworkFrameworkDNSBoundHermesConnectionFactory()
+    )
+
     public init(
         policy: HermesEventStreamingTransportPolicy = .secureDefault,
         httpLimits: BoundedHTTP1Limits = .secureDefault,
@@ -111,6 +121,20 @@ public struct DNSBoundHermesEventStreamingTransport: HermesEventStreamingTranspo
         )
         self.maximumRedirects = maximumRedirects
         self.planner = DNSBoundConnectionPlanner(resolver: resolver)
+        self.connectionFactory = connectionFactory
+    }
+
+    private init(
+        validatedPolicy: HermesEventStreamingTransportPolicy,
+        limits: BoundedHTTP1Limits,
+        maximumRedirects: Int,
+        planner: DNSBoundConnectionPlanner,
+        connectionFactory: any DNSBoundHermesConnectionCreating
+    ) {
+        self.policy = validatedPolicy
+        self.limits = limits
+        self.maximumRedirects = maximumRedirects
+        self.planner = planner
         self.connectionFactory = connectionFactory
     }
 

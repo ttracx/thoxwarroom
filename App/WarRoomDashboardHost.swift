@@ -26,11 +26,18 @@ struct WarRoomDashboardHost: View {
 
     init(profile: WorkspaceProfile, onClose: @escaping () -> Void) {
         let vault = KeychainCredentialVault()
+        let transports = WorkspaceNetworkTransportComposition.make(for: profile.endpoint)
         _credentialModel = StateObject(wrappedValue: WarRoomDashboardCredentialModel(
             profile: profile,
-            service: DefaultWorkspaceConnectionService(credentialVault: vault)
+            service: DefaultWorkspaceConnectionService(
+                credentialVault: vault,
+                transport: transports.provider
+            )
         ))
-        dashboardService = DefaultWarRoomDashboardService(credentialVault: vault)
+        dashboardService = DefaultWarRoomDashboardService(
+            credentialVault: vault,
+            transport: transports.provider
+        )
         self.profile = profile
         self.onClose = onClose
     }

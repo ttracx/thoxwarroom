@@ -1,0 +1,9 @@
+: keepalive
+
+data: {"event":"message.delta","run_id":"opaque-A7_42","delta":"hello"}
+
+data: {"event":"tool.started","run_id":"opaque-A7_42","payload":{"tool_name":"search"}}
+
+data: {"event":"approval.request","run_id":"opaque-A7_42","timestamp":"2026-08-23T12:00:00Z","choices":["once","session","always","deny"]}
+
+data: {"event":"run.completed","run_id":"opaque-A7_42"}

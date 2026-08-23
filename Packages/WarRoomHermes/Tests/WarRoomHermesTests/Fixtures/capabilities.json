@@ -1,0 +1,12 @@
+{
+  "runtime_mode": "server_agent",
+  "features": {
+    "runs": true,
+    "approvals": true,
+    "tool_progress": true
+  },
+  "endpoints": {
+    "runs": "/v1/runs",
+    "capabilities": "/v1/capabilities"
+  }
+}

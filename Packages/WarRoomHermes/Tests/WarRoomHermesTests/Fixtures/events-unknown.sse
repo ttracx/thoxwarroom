@@ -1,0 +1,3 @@
+data: {"event":"future.safe_event","prompt":"must-not-survive","payload":{"secret":"discard-me"}}
+
+data: {"event":"unsafe event token=abc","payload":{"secret":"discard-me"}}

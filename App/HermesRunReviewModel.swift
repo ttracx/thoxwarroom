@@ -59,13 +59,7 @@ final class HermesRunReviewModel: ObservableObject {
         loadTask = Task { [weak self] in
             guard let self else { return }
             do {
-                async let status = service.status(for: runID)
-                async let events = service.bufferedEvents(for: runID)
-                let (statusResponse, bufferedEvents) = try await (status, events)
-                let snapshot = HermesRunReviewSnapshot(
-                    status: statusResponse.status,
-                    events: bufferedEvents
-                )
+                let snapshot = try await service.loadSnapshot(for: runID)
                 try Task.checkCancellation()
                 guard activeGeneration == generation else { return }
                 phase = .loaded(snapshot)

@@ -1,9 +1,16 @@
 import SwiftUI
+import WarRoomCore
 
 struct ContentView: View {
+    private enum Destination {
+        case hostedCompatibility
+        case providerConnection(WorkspaceProfile)
+        case hermesReview(WorkspaceProfile)
+    }
+
     @EnvironmentObject private var webViewModel: ThoxWebViewModel
     @StateObject private var onboardingModel: WorkspaceOnboardingModel
-    @State private var isHostedCompatibilityPresented = false
+    @State private var destination: Destination?
 
     @MainActor
     init() {
@@ -17,14 +24,29 @@ struct ContentView: View {
     }
 
     var body: some View {
-        if isHostedCompatibilityPresented {
+        switch destination {
+        case .hostedCompatibility:
             HostedCompatibilityView(model: webViewModel) {
-                isHostedCompatibilityPresented = false
+                destination = nil
             }
-        } else {
-            WorkspaceOnboardingView(model: onboardingModel) { _ in
-                isHostedCompatibilityPresented = true
-            }
+        case .providerConnection(let profile):
+            WorkspaceConnectionHost(profile: profile) { destination = nil }
+        case .hermesReview(let profile):
+            HermesRunReviewHost(profile: profile) { destination = nil }
+        case nil:
+            WorkspaceOnboardingView(
+                model: onboardingModel,
+                onOpenNativeFeature: { profile in
+                    switch WorkspaceProviderKind(providerID: profile.provider.id) {
+                    case .openWebUI: destination = .providerConnection(profile)
+                    case .hermes: destination = .hermesReview(profile)
+                    case nil: break
+                    }
+                },
+                onOpenHostedCompatibility: { _ in
+                    destination = .hostedCompatibility
+                }
+            )
         }
     }
 }

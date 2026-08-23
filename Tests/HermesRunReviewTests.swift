@@ -40,7 +40,7 @@ final class HermesRunReviewModelTests: XCTestCase {
             .loaded(HermesRunReviewSnapshot(status: .running, events: events))
         )
         let callCount = await service.callCount
-        XCTAssertEqual(callCount, 2)
+        XCTAssertEqual(callCount, 1)
         XCTAssertFalse(String(describing: model.phase).contains(runID.rawValue))
     }
 
@@ -110,11 +110,11 @@ final class HermesRunReviewModelTests: XCTestCase {
 
         model.startLoading()
         for _ in 0..<100 {
-            if await service.callCount == 2 { break }
+            if await service.callCount == 1 { break }
             await Task.yield()
         }
         let firstLoadCallCount = await service.callCount
-        XCTAssertEqual(firstLoadCallCount, 2)
+        XCTAssertEqual(firstLoadCallCount, 1)
         await service.setMode(.success(events: []))
         model.runIDInput = secondRunID.rawValue
         model.startLoading()
@@ -165,35 +165,19 @@ private actor HermesRunReviewServiceStub: HermesRunReviewServicing {
         self.mode = mode
     }
 
-    func status(for runID: HermesRunID) async throws -> HermesRunStatusResponse {
-        callCount += 1
-        switch mode {
-        case .success:
-            return HermesRunStatusResponse(runID: runID, status: .running)
-        case .failure:
-            throw HermesRunReviewTestError.service("failed for \(runID.rawValue)")
-        case .delayed:
-            try await Task.sleep(for: .seconds(30))
-            return HermesRunStatusResponse(runID: runID, status: .running)
-        case .delayedIgnoringCancellation:
-            try? await Task.sleep(for: .milliseconds(100))
-            return HermesRunStatusResponse(runID: runID, status: .running)
-        }
-    }
-
-    func bufferedEvents(for runID: HermesRunID) async throws -> [HermesRunEvent] {
+    func loadSnapshot(for runID: HermesRunID) async throws -> HermesRunReviewSnapshot {
         callCount += 1
         switch mode {
         case .success(let events):
-            return events
+            return HermesRunReviewSnapshot(status: .running, events: events)
         case .failure:
             throw HermesRunReviewTestError.service("failed for \(runID.rawValue)")
         case .delayed:
             try await Task.sleep(for: .seconds(30))
-            return []
+            return HermesRunReviewSnapshot(status: .running, events: [])
         case .delayedIgnoringCancellation:
             try? await Task.sleep(for: .milliseconds(100))
-            return []
+            return HermesRunReviewSnapshot(status: .running, events: [])
         }
     }
 }

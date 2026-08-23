@@ -1,9 +1,61 @@
 import Foundation
 import WarRoomCore
+import WarRoomHermes
+import WarRoomOpenWebUI
+
+enum WorkspaceProviderKind: String, CaseIterable, Equatable, Sendable {
+    case openWebUI
+    case hermes
+
+    var title: String {
+        switch self {
+        case .openWebUI: "Open WebUI"
+        case .hermes: "Hermes Agent"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .openWebUI: "Discover health, configuration, and protected models."
+        case .hermes: "Review run status and buffered events without mutating controls."
+        }
+    }
+
+    var descriptor: ProviderDescriptor {
+        switch self {
+        case .openWebUI: OpenWebUIProvider.descriptor
+        case .hermes: HermesProvider.descriptor
+        }
+    }
+
+    var endpointPolicy: EndpointValidationPolicy {
+        switch self {
+        case .openWebUI:
+            EndpointValidationPolicy(
+                allowedHTTPPorts: [80, 3_000, 8_080],
+                allowedHTTPSPorts: [443, 8_443]
+            )
+        case .hermes:
+            EndpointValidationPolicy(
+                allowedHTTPPorts: [80, 8_000, 8_080, 8_642],
+                allowedHTTPSPorts: [443, 8_443]
+            )
+        }
+    }
+
+    init?(providerID: ProviderID) {
+        switch providerID.rawValue {
+        case OpenWebUIProvider.descriptor.id.rawValue, "workspace-provider": self = .openWebUI
+        case HermesProvider.descriptor.id.rawValue: self = .hermes
+        default: return nil
+        }
+    }
+}
 
 struct WorkspaceDraft: Equatable, Sendable {
     var name = ""
     var endpoint = ""
+    var providerKind: WorkspaceProviderKind = .openWebUI
     var boundary: NetworkBoundary = .localMachine
     var hasHostedDataTransferConsent = false
 }
@@ -38,7 +90,8 @@ extension WorkspaceProfile {
     /// The legacy WKWebView has its own exact-origin policy and may only be
     /// entered after this independently validated hosted profile is selected.
     var supportsHostedCompatibilityOrigin: Bool {
-        endpoint.boundary == .hosted &&
+        WorkspaceProviderKind(providerID: provider.id) == .openWebUI &&
+            endpoint.boundary == .hosted &&
             endpoint.url.scheme?.lowercased() == "https" &&
             endpoint.url.host?.lowercased() == "webui.thox.ai" &&
             endpoint.url.port == nil &&

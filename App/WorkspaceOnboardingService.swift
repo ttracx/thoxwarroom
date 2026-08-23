@@ -1,4 +1,5 @@
 import Foundation
+import WarRoomAppleInfrastructure
 import WarRoomCore
 
 @MainActor
@@ -26,12 +27,18 @@ enum WorkspaceOnboardingError: LocalizedError {
 final class UserDefaultsWorkspaceOnboardingService: WorkspaceOnboardingServicing {
     private let defaults: UserDefaults
     private let key: String
+    private let credentialVault: any CredentialVault
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(defaults: UserDefaults = .standard, key: String = "workspace.profile.v1") {
+    init(
+        defaults: UserDefaults = .standard,
+        key: String = "workspace.profile.v1",
+        credentialVault: any CredentialVault = KeychainCredentialVault()
+    ) {
         self.defaults = defaults
         self.key = key
+        self.credentialVault = credentialVault
     }
 
     func loadConfiguration() async throws -> WorkspaceProfile? {
@@ -45,16 +52,13 @@ final class UserDefaultsWorkspaceOnboardingService: WorkspaceOnboardingServicing
             let endpoint = try EndpointValidator.validate(
                 draft.endpoint,
                 declaredBoundary: draft.boundary,
-                hostedAccess: draft.hasHostedDataTransferConsent ? .granted : .denied
+                hostedAccess: draft.hasHostedDataTransferConsent ? .granted : .denied,
+                policy: draft.providerKind.endpointPolicy
             )
             let profile = try WorkspaceProfile(
                 displayName: draft.name,
                 endpoint: endpoint,
-                provider: ProviderDescriptor(
-                    id: ProviderID(rawValue: "workspace-provider"),
-                    displayName: "Workspace provider",
-                    capabilities: []
-                )
+                provider: draft.providerKind.descriptor
             )
             defaults.set(try encoder.encode(profile), forKey: key)
             guard defaults.data(forKey: key) != nil else { throw WorkspaceOnboardingError.persistence }
@@ -71,6 +75,19 @@ final class UserDefaultsWorkspaceOnboardingService: WorkspaceOnboardingServicing
     }
 
     func deleteConfiguration() async throws {
+        if let data = defaults.data(forKey: key) {
+            let profile: WorkspaceProfile
+            do {
+                profile = try decoder.decode(WorkspaceProfile.self, from: data)
+                try await credentialVault.deleteCredential(for: profile.id)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // Preserve the profile when its workspace-scoped secret cannot be
+                // removed so the user can retry without orphaning Keychain data.
+                throw WorkspaceOnboardingError.persistence
+            }
+        }
         defaults.removeObject(forKey: key)
     }
 

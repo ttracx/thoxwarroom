@@ -3,6 +3,7 @@ import WarRoomCore
 
 struct WorkspaceOnboardingView: View {
     @ObservedObject var model: WorkspaceOnboardingModel
+    let onOpenNativeFeature: (WorkspaceProfile) -> Void
     let onOpenHostedCompatibility: (WorkspaceProfile) -> Void
     @FocusState private var focusedField: Field?
 
@@ -56,6 +57,7 @@ struct WorkspaceOnboardingView: View {
         case .ready(let configuration):
             WorkspaceReadyView(
                 configuration: configuration,
+                onOpenNativeFeature: { onOpenNativeFeature(configuration) },
                 onOpenHostedCompatibility: {
                     onOpenHostedCompatibility(configuration)
                 },
@@ -86,6 +88,17 @@ struct WorkspaceOnboardingView: View {
                 }
                 boundaryPicker
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("Provider").font(.headline)
+                    Picker("Provider", selection: $model.draft.providerKind) {
+                        ForEach(WorkspaceProviderKind.allCases, id: \.rawValue) { provider in
+                            Text(provider.title).tag(provider)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("workspace-provider")
+                    Text(model.draft.providerKind.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Text("Workspace name").font(.headline)
                     TextField("Research workstation", text: $model.draft.name)
                         .textFieldStyle(.roundedBorder)
@@ -221,6 +234,7 @@ struct WorkspaceOnboardingView: View {
 
 private struct WorkspaceReadyView: View {
     let configuration: WorkspaceProfile
+    let onOpenNativeFeature: () -> Void
     let onOpenHostedCompatibility: () -> Void
     let onRemove: () -> Void
     @State private var isRemovalPresented = false
@@ -242,6 +256,13 @@ private struct WorkspaceReadyView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             HStack {
+                if let providerKind = WorkspaceProviderKind(providerID: configuration.provider.id) {
+                    Button(providerKind == .openWebUI ? "Open provider connection" : "Open run review") {
+                        onOpenNativeFeature()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("open-native-workspace-feature")
+                }
                 if configuration.supportsHostedCompatibilityOrigin {
                     Button("Open hosted compatibility workspace") {
                         onOpenHostedCompatibility()
@@ -267,7 +288,7 @@ private struct WorkspaceReadyView: View {
             Button("Remove Workspace", role: .destructive, action: onRemove)
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes the saved endpoint and boundary. It does not contact the endpoint or delete server-side data.")
+            Text("This removes the saved endpoint, boundary, and workspace credential from this device. It does not contact the endpoint or delete server-side data.")
         }
     }
 

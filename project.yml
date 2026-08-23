@@ -32,6 +32,8 @@ packages:
     path: Packages/WarRoomOpenWebUI
   WarRoomHermes:
     path: Packages/WarRoomHermes
+  WarRoomMesh:
+    path: Packages/WarRoomMesh
 
 targets:
   ThoxWarRoom macOS:
@@ -61,6 +63,7 @@ targets:
       - package: WarRoomAppleInfrastructure
       - package: WarRoomOpenWebUI
       - package: WarRoomHermes
+      - package: WarRoomMesh
     preBuildScripts:
       - name: Ensure generated app icons
         script: |
@@ -98,6 +101,7 @@ targets:
       - package: WarRoomAppleInfrastructure
       - package: WarRoomOpenWebUI
       - package: WarRoomHermes
+      - package: WarRoomMesh
     preBuildScripts:
       - name: Ensure generated app icons
         script: |

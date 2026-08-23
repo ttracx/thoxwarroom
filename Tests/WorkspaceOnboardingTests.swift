@@ -81,7 +81,11 @@ final class UserDefaultsWorkspaceOnboardingServiceTests: XCTestCase {
     }
 
     func testLocalProfileMetadataRoundTripsAndDeletes() async throws {
-        let service = UserDefaultsWorkspaceOnboardingService(defaults: defaults)
+        let vault = OnboardingCredentialVaultStub()
+        let service = UserDefaultsWorkspaceOnboardingService(
+            defaults: defaults,
+            credentialVault: vault
+        )
         let profile = try await service.saveConfiguration(
             from: WorkspaceDraft(
                 name: "Local Lab",
@@ -105,6 +109,32 @@ final class UserDefaultsWorkspaceOnboardingServiceTests: XCTestCase {
         try await service.deleteConfiguration()
         let deletedProfile = try await service.loadConfiguration()
         XCTAssertNil(deletedProfile)
+        let deletedIDs = await vault.deletedIDs
+        XCTAssertEqual(deletedIDs, [profile.id])
+    }
+
+    func testWorkspaceMetadataIsPreservedWhenCredentialDeletionFails() async throws {
+        let vault = OnboardingCredentialVaultStub(deleteFails: true)
+        let service = UserDefaultsWorkspaceOnboardingService(
+            defaults: defaults,
+            credentialVault: vault
+        )
+        let profile = try await service.saveConfiguration(
+            from: WorkspaceDraft(name: "Local Lab", endpoint: "http://127.0.0.1")
+        )
+
+        do {
+            try await service.deleteConfiguration()
+            XCTFail("Expected credential deletion failure")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Workspace configuration is unavailable on this device."
+            )
+        }
+
+        let preservedProfile = try await service.loadConfiguration()
+        XCTAssertEqual(preservedProfile, profile)
     }
 
     func testHostedProfileRequiresSeparateConsent() async {
@@ -178,6 +208,25 @@ final class UserDefaultsWorkspaceOnboardingServiceTests: XCTestCase {
         XCTAssertEqual(defaults.data(forKey: "workspace.profile.v1"), corruptData)
     }
 }
+
+private actor OnboardingCredentialVaultStub: CredentialVault {
+    private let deleteFails: Bool
+    private(set) var deletedIDs: [WorkspaceID] = []
+
+    init(deleteFails: Bool = false) {
+        self.deleteFails = deleteFails
+    }
+
+    func credential(for workspaceID: WorkspaceID) -> ProviderCredential? { nil }
+    func store(_ credential: ProviderCredential, for workspaceID: WorkspaceID) {}
+
+    func deleteCredential(for workspaceID: WorkspaceID) throws {
+        if deleteFails { throw OnboardingCredentialVaultError.unavailable }
+        deletedIDs.append(workspaceID)
+    }
+}
+
+private enum OnboardingCredentialVaultError: Error { case unavailable }
 
 @MainActor
 private final class WorkspaceOnboardingServiceStub: WorkspaceOnboardingServicing {

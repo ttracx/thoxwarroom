@@ -83,7 +83,7 @@ xcodebuild \
     CODE_SIGN_STYLE=Automatic \
     DEVELOPMENT_TEAM="$TEAM_ID" \
     -allowProvisioningUpdates \
-    "${XCODE_AUTH_ARGS[@]}" \
+    ${XCODE_AUTH_ARGS[@]+"${XCODE_AUTH_ARGS[@]}"} \
     clean archive | tee "$BUILD_DIR/archive.log" >/dev/null
 tail -30 "$BUILD_DIR/archive.log"
 
@@ -142,7 +142,7 @@ xcodebuild \
     -exportPath "$EXPORT_DIR" \
     -exportOptionsPlist "$EXPORT_OPTIONS" \
     -allowProvisioningUpdates \
-    "${XCODE_AUTH_ARGS[@]}" | tee "$BUILD_DIR/export.log" >/dev/null
+    ${XCODE_AUTH_ARGS[@]+"${XCODE_AUTH_ARGS[@]}"} | tee "$BUILD_DIR/export.log" >/dev/null
 tail -30 "$BUILD_DIR/export.log"
 
 PACKAGE_PATH=$(find "$EXPORT_DIR" -maxdepth 1 -type f -name '*.pkg' -print -quit)

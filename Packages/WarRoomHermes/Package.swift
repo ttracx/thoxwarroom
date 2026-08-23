@@ -10,6 +10,10 @@ let package = Package(
     ],
     products: [
         .library(name: "WarRoomHermes", targets: ["WarRoomHermes"]),
+        .executable(
+            name: "hermes-contract-evidence",
+            targets: ["HermesContractEvidenceTool"]
+        ),
     ],
     dependencies: [
         .package(path: "../WarRoomCore"),
@@ -19,9 +23,14 @@ let package = Package(
             name: "WarRoomHermes",
             dependencies: ["WarRoomCore"]
         ),
+        .target(name: "HermesContractEvidence"),
+        .executableTarget(
+            name: "HermesContractEvidenceTool",
+            dependencies: ["HermesContractEvidence"]
+        ),
         .testTarget(
             name: "WarRoomHermesTests",
-            dependencies: ["WarRoomHermes", "WarRoomCore"],
+            dependencies: ["WarRoomHermes", "WarRoomCore", "HermesContractEvidence"],
             resources: [.process("Fixtures")]
         ),
     ],

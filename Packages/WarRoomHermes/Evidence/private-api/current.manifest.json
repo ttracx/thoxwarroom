@@ -1,0 +1,94 @@
+{
+  "artifacts" : [
+
+  ],
+  "capture" : {
+    "environment_boundary" : "dedicated_non_production_required",
+    "origin" : "https://dedicated-hermes-nonproduction.invalid",
+    "retained_sensitive_values" : false,
+    "service_version" : "not_captured",
+    "status" : "not_captured",
+    "synthetic_run" : false
+  },
+  "fixture_kind" : "sanitized_authenticated_hermes_private_api_contract",
+  "requirements" : [
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "credential_boundary",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "capabilities_response",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "run_submission_request",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "run_submission_response",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "run_status_response",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "event_stream_transport",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "event_stream_frames",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "approval_request_response",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "stop_request_response",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "cancellation_behavior",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "error_responses",
+      "status" : "missing"
+    }
+  ],
+  "schema_version" : 1
+}

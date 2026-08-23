@@ -94,7 +94,7 @@
 - **Local-first impact:** profile data and keys remain inside the Apple app/container and Keychain; no cloud or telemetry dependency is introduced.
 - **Compliance impact:** encryption, migration, deletion ordering, and negative tests create reviewable controls without claiming certification or physical-device verification.
 - **Final choice:** `WarRoomAppleInfrastructure` owns the ciphertext/key primitives; the app owns provider-aware profile encoding and revalidates provider capabilities and endpoint policy from current trusted code after decryption.
-- **Follow-up:** add a transactional encrypted audit ledger with keyed chain and Keychain rollback anchor, obscure workspace routing indexes, implement retention/export and resumable deletion, and verify locked-device behavior on physical hardware.
+- **Follow-up:** profile revision/CAS and opaque routing indexes remain; the audit ledger, rollback anchor, and resumable deletion journal now exist. Implement retention/export and verify locked-device behavior on physical hardware.
 
 ## ADR-009: Ship a bounded encrypted audit ledger before mutation wiring
 
@@ -106,7 +106,7 @@
 - **Local-first impact:** audit content and keys remain in the app container and device-only Keychain with no telemetry or hosted dependency.
 - **Compliance impact:** durable local evidence is a reviewable control primitive, not a compliance or non-repudiation claim.
 - **Final choice:** keep the rollback-anchored ledger available as an infrastructure seam while mutation UI stays disabled. Ciphertext is committed before the anchor advances; authenticated ciphertext-ahead state recovers forward after interruption.
-- **Follow-up:** add cross-instance CAS/file locking, retention/export policy, audited-operation coordination, and app composition wiring.
+- **Follow-up:** cooperative cross-process file locking now exists. Add retention/export policy, audited-operation coordination, external anchoring if required, and app composition wiring.
 
 ## ADR-010: Contract evidence gates native chat capability
 
@@ -119,3 +119,39 @@
 - **Compliance impact:** captured provenance and explicit capability activation make review possible; no deployed-provider assurance is claimed.
 - **Final choice:** executable fail-closed evidence gate and sanitized boundary fixture.
 - **Follow-up:** provision a sanctioned non-production identity and capture the nine documented evidence categories before adding DTOs or transport methods.
+
+## ADR-011: Serialize audit ledger and anchor as one cooperative transaction
+
+- **Decision:** Guard the complete ledger read/verify/recovery/write/anchor sequence with a per-workspace process lock and persistent app-container Darwin `flock` file.
+- **Context:** Separate store actors or helper processes could otherwise read the same head and overwrite one another despite each actor being internally serialized.
+- **Options considered:** actor-only isolation; in-process lock only; SQLite transaction migration; process lock plus descriptor-backed advisory file lock.
+- **Tradeoffs:** the selected lock is dependency-free, cancellation-safe, and covers current storage, but protects only cooperating writers sharing one lock root. Persistent empty lock files and a small process-lifetime lock registry are intentional.
+- **Security impact:** 0600 regular single-link lock files opened with `openat`/`O_NOFOLLOW` avoid symlink and inode-split unlink races. Acquisition is bounded and failures make no ledger/anchor mutation.
+- **Local-first impact:** coordination stays within the private app container and requires no daemon, database, or network service.
+- **Compliance impact:** concurrent audit ordering becomes testable, but this is not external non-repudiation or protection from a privileged non-cooperating process.
+- **Final choice:** two-layer cooperative locking held across ciphertext-save-before-anchor-advance ordering.
+- **Follow-up:** evaluate a transactional database or privileged audit service only if multiple non-cooperating writers become a product requirement.
+
+## ADR-012: Journal credential-first workspace deletion in device-only Keychain
+
+- **Decision:** Persist a versioned bounded deletion stage before destructive work, then replay credential deletion, workspace key/ciphertext erasure, selector cleanup, and journal clearing idempotently.
+- **Context:** A crash between credential deletion and cryptographic erasure could leave ambiguous state, while recreating a missing key over ciphertext would violate the fail-closed storage contract.
+- **Options considered:** best-effort synchronous deletion; plaintext defaults flag; background database journal; device-only Keychain journal integrated with the existing single-workspace lifecycle.
+- **Tradeoffs:** Keychain survives workspace-key deletion and exposes no plaintext journal file, but recovery currently runs only on lifecycle load/delete and supports one active workspace.
+- **Security impact:** intent is durable before deletion; credential failure preserves recoverability; journal data is redacted, non-synchronizing, `WhenUnlockedThisDeviceOnly`, and bounded.
+- **Local-first impact:** deletion coordination never leaves the device and introduces no telemetry or hosted dependency.
+- **Compliance impact:** interruption recovery is reviewable evidence, not proof that every server-side copy or external export was deleted.
+- **Final choice:** explicit three-stage replay with active-workspace binding and non-sensitive errors.
+- **Follow-up:** add multi-workspace journaling, background recovery, export policy, and physical locked-device tests.
+
+## ADR-013: Grant the local browser a narrow read-only filesystem capability
+
+- **Decision:** Show the browser only for local-device workspaces and require an explicit non-persisted folder selection. Access descendants by directory descriptor with no-follow checks at every component.
+- **Context:** A generic path field or recursive URL resolution could expose arbitrary files through traversal, symlinks, or stale path assumptions.
+- **Options considered:** reuse legacy browser behavior; accept typed paths; persist broad bookmarks; operator-selected ephemeral root with descriptor-relative access.
+- **Tradeoffs:** the first slice previews only bounded control-safe UTF-8 and requires reselection each session, but it has no write, upload, provider, or network path.
+- **Security impact:** absolute/malformed/traversal paths fail closed; symlinks remain visible but cannot be followed; listings cap at 500 entries, depth at 32, and previews at 256 KiB.
+- **Local-first impact:** all reads remain inside the operator-selected local namespace and file contents are never transmitted.
+- **Compliance impact:** explicit provenance and a narrow capability ease review; physical picker/security-scope behavior still requires device evidence.
+- **Final choice:** confined read-only text browsing before search, mutation, sharing, or bookmark persistence.
+- **Follow-up:** manually validate both platform pickers, then design scoped bookmark retention and local-only search if justified.

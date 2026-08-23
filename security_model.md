@@ -83,9 +83,11 @@ ledger from ciphertext modification and substitution. A fixed-width
 `WhenUnlockedThisDeviceOnly` Keychain version/count/head-digest anchor rejects
 older valid ciphertext, valid tail truncation, divergent prefixes, and missing
 or invalid anchors, while allowing authenticated ciphertext-ahead crash
-recovery. This does not provide cross-instance/process CAS or external
-non-repudiation, so mutation workflows remain disabled pending coordination and
-policy wiring.
+recovery. A process-wide per-root/workspace lock plus a persistent 0600
+app-container `flock` file serializes the complete ledger-and-anchor transaction
+across cooperative actors/processes with bounded, cancellation-safe acquisition.
+This is advisory coordination, not external non-repudiation, so mutation
+workflows remain disabled pending authorization and policy wiring.
 
 ## Storage and retention
 
@@ -109,6 +111,6 @@ Record authentication outcomes, workspace/profile changes, Hermes approvals/deni
 - MeshStack War Room is intentionally read-only. It requires the exact Mesh provider identity, `.warRoomStatus` capability, a workspace-scoped Keychain credential, and a canonical operator-entered MeshID before transport. Devices, topology, and events load independently so verified partial results retain provenance; no control-plane mutation is exposed. The contract is source-defined and synthetic-fixture-tested, not live-verified.
 - The concrete transport enforces exact-origin redirects and local resource bounds but is not yet DNS-rebinding-resistant and has not completed live certificate/private-endpoint tests.
 - The hosted compatibility implementation still uses the default persistent website data store and lacks verified server-retention and embedded-domain evidence. Its user-facing route is therefore feature-disabled even for an exact authorized origin; re-enabling requires a reviewed privacy contract and workspace-isolated storage.
-- There is no encrypted chat/document history, cross-instance/process audit writer lock/CAS, audit retention/export policy, RBAC, or verified full-data deletion/export workflow. The concrete audit ledger uses a fixed-width `WhenUnlockedThisDeviceOnly` Keychain head anchor to reject rollback and tail truncation, but is bounded and not yet composed into mutation workflows. Ciphertext paths currently expose raw workspace UUID routing metadata, and physical locked-device/file-protection behavior is not yet evidenced. Both app targets bundle a validated privacy manifest that declares no tracking domains, no developer/SDK data collection, and app-only UserDefaults reason `CA92.1`; this matches the current direct required-reason API use and must be reviewed again whenever storage, telemetry, SDKs, or network ownership changes.
+- There is no encrypted chat/document history, audit retention/export policy, RBAC, or verified full-data export workflow. The audit writer lock is advisory and only coordinates cooperating processes using the same app-container root. The concrete audit ledger is bounded and not yet composed into mutation workflows. Workspace deletion is now journaled and resumable when lifecycle load/delete runs, but remains single-active-workspace and has no background recovery worker. Ciphertext paths currently expose raw workspace UUID routing metadata, and physical locked-device/file-protection behavior is not yet evidenced. Both app targets bundle a validated privacy manifest that declares no tracking domains, no developer/SDK data collection, and app-only UserDefaults reason `CA92.1`; this matches the current direct required-reason API use and must be reviewed again whenever storage, telemetry, SDKs, or network ownership changes.
 - The macOS release script now requires Developer ID Application signing, rejects `get-task-allow`, uses a Keychain-backed notary profile, staples before final staging, and validates the exact final DMG and mounted app. A live signed/notarized run and clean-device behavior are still not proven. The iOS archive/export is Apple Distribution signed and provisioned for `DVJ6Z5343U.ai.thox.warroom`; upload remains blocked because App Store Connect has no app record for the existing bundle ID.
 - The published v4.2 macOS app is a development-signed preview rejected by Gatekeeper, not a production distribution.

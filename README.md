@@ -4,7 +4,7 @@
 
 ThoxWarRoom now starts with native workspace onboarding. Users explicitly choose a local-device, private-network, or hosted boundary before any provider can be opened; hosted transfer requires separate consent. Endpoint/profile metadata is AES-256-GCM encrypted locally with workspace-scoped device-only Keychain keys; credentials remain separate in Keychain. The former Open WebUI shell remains compiled for migration compatibility but is not exposed while the hosted retention and App Store privacy contract are unverified.
 
-> **Current scope:** v4.2 has the clean-room shared core, encrypted workspace-profile persistence, a rollback-anchored encrypted audit-store seam, native provider selection, Open WebUI discovery/credential/model-catalog UI, a credential-gated read-only Hermes run review with incremental URLSession SSE delivery, and a credential-gated read-only MeshStack War Room dashboard. Native authenticated chat, Hermes approval/stop actions, encrypted chat/document history, audit retention/export and mutation wiring, live private-service verification, and completed distribution remain unfinished. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [current service contracts](docs/current_service_contracts.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md).
+> **Current scope:** v4.2 has the clean-room shared core, encrypted workspace-profile persistence with resumable credential-first deletion, a rollback-anchored cross-process-serialized audit-store seam, native provider selection, Open WebUI discovery/credential/model-catalog UI, a credential-gated read-only Hermes run review with incremental URLSession SSE delivery, a credential-gated read-only MeshStack War Room dashboard, and an explicitly selected confined local text browser. Native authenticated chat, Hermes approval/stop actions, encrypted chat/document history, audit retention/export and mutation wiring, live private-service verification, physical-device proof, and completed distribution remain unfinished. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [current service contracts](docs/current_service_contracts.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md).
 
 Current build, signing, upload, and blocker evidence is recorded in [release_evidence.md](release_evidence.md).
 
@@ -55,7 +55,9 @@ thoxwarroom/
 ├── scripts/
 │   ├── gen_appiconset.py       # Regenerate THOX-green chip-mark icons
 │   ├── build_macos.sh          # Developer ID signed, notarized, stapled macOS DMG
+│   ├── build_macos_appstore.sh # Mac App Store/TestFlight archive, export, upload
 │   ├── build_ios.sh            # Archive + TestFlight upload
+│   ├── generate_sbom.sh        # Deterministic SPDX 2.3 release inventory
 │   ├── bootstrap.sh            # Clean-clone tool bootstrap + unsigned CI
 │   ├── bootstrap_xcodegen.sh   # Pinned, checksum-verified local XcodeGen
 │   ├── ci_unsigned.sh          # Secret-free macOS tests + iOS build
@@ -80,7 +82,12 @@ NOTARY_PROFILE=THOX_NOTARY ./scripts/build_macos.sh
 # Credential-free local packaging check (explicitly not release-ready)
 SIGNING_MODE=unsigned SKIP_NOTARIZE=1 ./scripts/build_macos.sh
 
-# 3) Build the iOS app + upload to TestFlight
+# 3) Build the native macOS app + upload to App Store Connect/TestFlight
+ASC_API_KEY_ID=... ASC_API_ISSUER_ID=... ASC_API_KEY_P8=/secure/AuthKey.p8 \
+    ./scripts/build_macos_appstore.sh
+# Output: build/macos-appstore/export/ThoxWarRoom.pkg
+
+# 4) Build the iOS app + upload to TestFlight
 APPLE_ID=you@apple.com APPLE_PASSWORD=app-specific-pw \
     ./scripts/build_ios.sh
 # Output: build/ios/export/ThoxWarRoom.ipa
@@ -100,8 +107,10 @@ The app opens native workspace onboarding. The legacy `https://webui.thox.ai` co
 - **Hosted consent and disabled compatibility boundary** — hosted configuration requires affirmative data-transfer consent. The legacy WebView additionally remains feature-disabled until THOX verifies server retention, embedded domains, and matching App Store privacy declarations.
 - **Encrypted workspace profiles** — profile payloads are sealed with AES-256-GCM using HKDF-derived purpose keys and workspace-scoped, non-synchronizing `WhenUnlockedThisDeviceOnly` Keychain master keys. Ciphertext writes are atomic, bounded, private, excluded from backup, and use complete iOS file protection. `UserDefaults` retains only the active workspace UUID and legacy migration evidence until encrypted read-back succeeds.
 - **Workspace-scoped credentials and deletion** — Open WebUI and Hermes credentials are rejected in URLs, entered through privacy-sensitive native fields, and stored separately in Keychain. Workspace removal must delete the provider credential before cryptographic profile erasure; credential failure preserves the workspace for retry.
+- **Resumable deletion** — a versioned, bounded, device-only Keychain journal records deletion intent before destructive work and resumes credential deletion, workspace-key/ciphertext erasure, selector cleanup, and journal clearing idempotently after interruption.
 - **Native provider surfaces** — Open WebUI exposes bounded public discovery and a protected model catalog; its executable evidence gate keeps native chat/stream/citation capabilities disabled until authenticated contracts are captured. Hermes concurrently loads status and a live incremental URLSession SSE stream into a bounded read-only review, with explicit completion/error/cancellation states. Approval/stop controls, reconnect/cursor semantics, and live-provider evidence remain unavailable.
-- **Encrypted durable audit seam** — workspace-scoped AES-GCM ledgers revalidate redaction, serialize appends within one actor, chain ordered entries, bind cursors to workspace/digest, and bound capacity/pages. A fixed-width device-only Keychain head anchor rejects valid whole-ledger rollback and tail truncation, while recovering a ciphertext-ahead crash. Cross-instance/process CAS, retention/export, and app mutation wiring remain explicit gaps.
+- **Encrypted durable audit seam** — workspace-scoped AES-GCM ledgers revalidate redaction, chain ordered entries, bind cursors to workspace/digest, and bound capacity/pages. A fixed-width device-only Keychain head anchor rejects valid whole-ledger rollback and tail truncation, while recovering a ciphertext-ahead crash. Per-workspace process locks plus persistent app-container `flock` files serialize cooperative writers across actors/processes. Retention/export and app mutation wiring remain explicit gaps.
+- **Confined local workspace browser** — local-device workspaces can open an explicitly selected, non-persisted folder through a read-only picker. Descriptor-relative no-follow access rejects traversal and symlink following; listings are capped at 500 entries and previews at 256 KiB of control-safe UTF-8. No write, upload, provider, or network path exists.
 - **Read-only War Room** — MeshStack workspaces require a canonical operator-supplied mesh UUID and Keychain credential before loading bounded devices, topology, and events. The dashboard shows provenance, freshness, empty/offline/error states, and partial results; it exposes no pairing, deletion, token creation, or control-plane write.
 - **Persistent session with explicit purge** — `WKWebViewConfiguration.websiteDataStore = .default()` keeps login data across relaunch. **Sign Out** requires confirmation, clears all WebKit website data in the app container, reports clearing/success/failure state, and reloads the canonical URL after success. This clears local session material; server-side token revocation is not yet verified.
 - **Strict in-app policy** — only credential-free `https://webui.thox.ai` URLs on the default HTTPS port are allowed in the WebView. Host suffixes, HTTP, custom schemes, embedded credentials, and non-default ports are never allowed in-app.
@@ -123,6 +132,12 @@ The app opens native workspace onboarding. The legacy `https://webui.thox.ai` co
 - Packaging order: notarize/staple app → stage app → create/sign DMG → notarize/staple DMG → validate the final mounted app and DMG with `codesign`, `stapler`, and `spctl`.
 - Local-only modes: `SIGNING_MODE=unsigned SKIP_NOTARIZE=1` or `SIGNING_MODE=adhoc SKIP_NOTARIZE=1`. These produce a checksum and verify DMG integrity but intentionally skip trust claims.
 - Output DMG: `build/macos/ThoxWarRoom-Release-arm64.dmg`
+- Mac App Store/TestFlight: `scripts/build_macos_appstore.sh` archives with
+  automatic App Store signing, verifies sandbox/no-debug entitlements, exports
+  a signed installer package, and uploads it with `altool --type macos`.
+- Mac App Store output: `build/macos-appstore/export/ThoxWarRoom.pkg`
+- Direct DMG and Mac App Store/TestFlight are separate distribution lanes; proof
+  in one lane must not be used as evidence for the other.
 
 ### iOS
 
@@ -133,6 +148,10 @@ The app opens native workspace onboarding. The legacy `https://webui.thox.ai` co
 - Upload: `xcrun altool --upload-app --type ios` (App Store Connect API key preferred, see `.env.example`)
 - API-key variables: `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and `ASC_API_KEY_P8`. The `.p8` stays outside the repository and is passed directly to Xcode provisioning and `altool`; neither it nor the locally generated JWT is logged.
 - Credential-only check: `source .env && VALIDATE_CREDENTIALS_ONLY=1 ./scripts/build_ios.sh`
+
+Both signed release paths generate a revision-bound SPDX 2.3 SBOM beside the
+artifact. Generation fails when tracked changes make provenance ambiguous or a
+remote Swift dependency has not been explicitly modeled.
 
 ## Tests
 
@@ -145,7 +164,7 @@ xcodebuild \
     test
 ```
 
-199 current tests cover 136 standalone package cases plus 63 integrated macOS app cases, including:
+226 current Swift tests cover 155 standalone package cases plus 71 integrated macOS app cases; three additional Python tests validate deterministic SPDX generation. Coverage includes:
 
 - Base URL is `https://webui.thox.ai`
 - User-activated safe HTTPS off-domain URLs → external
@@ -162,11 +181,15 @@ xcodebuild \
 - Metadata round-trip, corrupt-state recovery, deletion, and credential rejection
 - Exact-host compatibility availability; suffixes, ports, and paths remain denied
 - Workspace-scoped, non-synchronizing Keychain behavior and typed failures
+- Resumable credential-first deletion across injected journal/credential/profile/selector failures
+- Rollback anchor recovery plus cross-actor/process audit contention, timeout, cancellation, and symlink rejection
+- Confined local browsing: traversal/symlink blocking, bounded listings/previews, UTF-8/control validation, and cancellation
 - Cookie/cache-free transport, exact-origin redirects, bounded bodies, and safe bearer handling
 - Open WebUI discovery/model-contract decoding without live-network tests
 - Hermes run routing, response correlation, buffered and live-byte bounded fragmented SSE parsing, canonical approvals, and cancellation
 - Read-only Mesh device/topology/event decoding, mesh isolation, freshness, provenance, and bounds
 - Provider selection, provider-specific port policies, legacy mapping, credential lifecycle deletion, and read-only Hermes UI state
+- Deterministic SPDX package relationships and fail-closed remote dependency detection
 
 ## Design system
 

@@ -82,8 +82,10 @@ boundaries are verified.
   status where applicable, review contact, and review notes.
 - Screenshots captured from the exact submitted binary on required device sizes.
 - TestFlight internal/external tester groups and beta review information.
-- macOS distribution choice: Mac App Store/TestFlight build or separately
-  notarized Developer ID DMG. The current macOS script implements the latter.
+- macOS distribution choice: the Mac App Store/TestFlight archive/export path
+  and separate notarized Developer ID DMG path are both implemented. The owner
+  must choose whether both are distributed and complete the corresponding Apple
+  record/certificate gates.
 
 ## Evidence boundaries
 

@@ -1,5 +1,16 @@
 # Release Evidence
 
+## 2026-08-23 persistence, browser, SBOM, and macOS TestFlight wave
+
+- Source implementation through `5c487fe`: cooperative cross-process audit transaction serialization (`c3a2947`), resumable Keychain deletion journal (`c5a6810`), confined local workspace browser (`5c487fe`), deterministic SPDX generation (`b768b5d`/`eea9e2d`), and macOS App Store/TestFlight tooling (`0047611`).
+- Integrated local validation: 155/155 standalone Swift package tests and 71/71 integrated macOS app tests passed with warnings-as-errors; three Python SPDX tests passed; deterministic project/assets/privacy checks and the generic iOS Simulator test build passed through `CI_DERIVED_DATA=build/ci-wave4 ./scripts/ci_unsigned.sh`.
+- Mac App Store archive/export succeeded at `build/macos-appstore-5c487fe/ThoxWarRoom.xcarchive` and `build/macos-appstore-5c487fe/export/ThoxWarRoom.pkg` using the THOX team and repository-pinned XcodeGen 2.46.0.
+- Exported app signature: `Apple Distribution: THOX AI LLC (DVJ6Z5343U)`; identifier `ai.thox.warroom`; TeamIdentifier `DVJ6Z5343U`; strict deep verification passed. Entitlements include app sandbox, read-only user-selected files, network client, application identifier, and team identifier; `get-task-allow` is absent.
+- Installer signature: `3rd Party Mac Developer Installer: THOX AI LLC (DVJ6Z5343U)`. Package SHA-256: `52b271cc7e6b79d80bd6db33d4b0413dceaae577ae746ff6581a4a6d8a2675de`.
+- SPDX SHA-256: `4bcfd704e528dd0f7d3998fd4ef76e421453897d7b2730924dda9fce28f332ec`. It inventories the app plus five local Swift packages and fails closed if an unmodeled remote package declaration appears.
+- macOS App Store Connect upload was attempted with the external THOX API key and rejected before transfer: `Cannot determine the Apple ID from Bundle ID 'ai.thox.warroom' and platform 'MAC_OS'. (19)` followed by `ExitFailure (31)`.
+- Both this macOS package and the previously signed iOS IPA predate the final documentation commit. Rebuild both from the pushed final SHA after the shared iOS/macOS App Store Connect record exists.
+
 ## 2026-08-23 post-streaming main archive and TestFlight retry
 
 - Source: pushed `main` at `42004f6` with the concrete Hermes URLSession stream, app live review, rollback-anchored audit ledger, pinned release tooling, and reconciled documentation.

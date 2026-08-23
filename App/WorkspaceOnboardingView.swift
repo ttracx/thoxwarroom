@@ -236,7 +236,7 @@ private struct WorkspaceReadyView: View {
             Text(configuration.endpoint.boundary.privacySummary).font(.callout).foregroundStyle(.secondary)
             Divider()
             Label(
-                "Configuration is stored locally. Credentials are not accepted in endpoint URLs and will be handled by the secure core integration.",
+                "Configuration is stored locally. When added, provider credentials are stored separately in this device's Keychain and are never accepted in endpoint URLs.",
                 systemImage: "lock.fill"
             )
             .font(.caption)

@@ -170,6 +170,13 @@ xcodebuild \
 
 The app icon is a THOX emerald rounded square with a stylized "chip" mark (3 dark horizontal slabs forming a T silhouette). `scripts/gen_appiconset.py` regenerates the full icon set from a single 1024×1024 master using Pillow + `iconutil`.
 
+Generated icon PNGs, catalogs, and `.icns` output are intentionally ignored by
+Git. Both Xcode app targets run `scripts/ensure_appiconsets.sh` before asset
+compilation; it reuses valid generated catalogs or regenerates and validates
+them with the existing deterministic generator. `scripts/bootstrap.sh` remains
+the canonical clean-clone validation entry point and also verifies generation
+drift.
+
 ## CI
 
 `scripts/bootstrap.sh` is the clean-host entry point. It downloads XcodeGen

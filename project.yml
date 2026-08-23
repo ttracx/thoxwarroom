@@ -61,6 +61,11 @@ targets:
       - package: WarRoomAppleInfrastructure
       - package: WarRoomOpenWebUI
       - package: WarRoomHermes
+    preBuildScripts:
+      - name: Ensure generated app icons
+        script: |
+          "$SRCROOT/scripts/ensure_appiconsets.sh"
+        basedOnDependencyAnalysis: false
     scheme:
       testTargets:
         - ThoxWarRoomTests macOS
@@ -85,6 +90,7 @@ targets:
         INFOPLIST_KEY_UIRequiresFullScreen: NO
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 THOX AI LLC"
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "THOX War Room uses local network access only to connect to AI providers you explicitly configure on this device or private infrastructure."
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
@@ -92,6 +98,11 @@ targets:
       - package: WarRoomAppleInfrastructure
       - package: WarRoomOpenWebUI
       - package: WarRoomHermes
+    preBuildScripts:
+      - name: Ensure generated app icons
+        script: |
+          "$SRCROOT/scripts/ensure_appiconsets.sh"
+        basedOnDependencyAnalysis: false
     scheme:
       testTargets:
         - ThoxWarRoomTests iOS

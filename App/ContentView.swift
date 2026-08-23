@@ -8,6 +8,7 @@ struct ContentView: View {
         case hermesReview(WorkspaceProfile)
         case warRoomDashboard(WorkspaceProfile)
         case workspaceBrowser(WorkspaceProfile)
+        case auditCenter(WorkspaceProfile)
     }
 
     #if os(macOS)
@@ -15,6 +16,7 @@ struct ContentView: View {
         case workspace
         case nativeFeature
         case workspaceBrowser
+        case auditCenter
         case hostedCompatibility
     }
     #endif
@@ -70,6 +72,11 @@ struct ContentView: View {
                                 .accessibilityIdentifier("mac-sidebar-hosted")
                         }
                     }
+                    Section("Workspace controls") {
+                        Label("Audit policy & export", systemImage: "checkmark.shield")
+                            .tag(MacDestination.auditCenter)
+                            .accessibilityIdentifier("mac-sidebar-audit-center")
+                    }
                 }
             }
             .listStyle(.sidebar)
@@ -90,7 +97,8 @@ struct ContentView: View {
             workspaceOverview(
                 onOpenNativeFeature: { _ in macDestination = .nativeFeature },
                 onOpenHostedCompatibility: { _ in macDestination = .hostedCompatibility },
-                onOpenWorkspaceBrowser: { _ in macDestination = .workspaceBrowser }
+                onOpenWorkspaceBrowser: { _ in macDestination = .workspaceBrowser },
+                onOpenAuditCenter: { _ in macDestination = .auditCenter }
             )
         case .nativeFeature:
             if let profile = configuredProfile {
@@ -101,6 +109,12 @@ struct ContentView: View {
         case .workspaceBrowser:
             if let profile = configuredProfile, profile.supportsLocalWorkspaceBrowser {
                 WorkspaceBrowserHost(profile: profile) { macDestination = .workspace }
+            } else {
+                unavailableMacDestination
+            }
+        case .auditCenter:
+            if let profile = configuredProfile {
+                WorkspaceAuditCenterHost(profile: profile) { macDestination = .workspace }
             } else {
                 unavailableMacDestination
             }
@@ -145,6 +159,8 @@ struct ContentView: View {
             if WorkspaceNativeFeatureRoute(profile: profile) == nil { macDestination = .workspace }
         case .workspaceBrowser:
             if !profile.supportsLocalWorkspaceBrowser { macDestination = .workspace }
+        case .auditCenter:
+            break
         case .hostedCompatibility:
             if !profile.supportsHostedCompatibilityOrigin { macDestination = .workspace }
         }
@@ -180,13 +196,16 @@ struct ContentView: View {
             WarRoomDashboardHost(profile: profile) { destination = nil }
         case .workspaceBrowser(let profile):
             WorkspaceBrowserHost(profile: profile) { destination = nil }
+        case .auditCenter(let profile):
+            WorkspaceAuditCenterHost(profile: profile) { destination = nil }
         case nil:
             workspaceOverview(
                 onOpenNativeFeature: { profile in
                     destination = destination(for: profile)
                 },
                 onOpenHostedCompatibility: { _ in destination = .hostedCompatibility },
-                onOpenWorkspaceBrowser: { profile in destination = .workspaceBrowser(profile) }
+                onOpenWorkspaceBrowser: { profile in destination = .workspaceBrowser(profile) },
+                onOpenAuditCenter: { profile in destination = .auditCenter(profile) }
             )
         }
     }
@@ -194,13 +213,15 @@ struct ContentView: View {
     private func workspaceOverview(
         onOpenNativeFeature: @escaping (WorkspaceProfile) -> Void,
         onOpenHostedCompatibility: @escaping (WorkspaceProfile) -> Void,
-        onOpenWorkspaceBrowser: @escaping (WorkspaceProfile) -> Void
+        onOpenWorkspaceBrowser: @escaping (WorkspaceProfile) -> Void,
+        onOpenAuditCenter: @escaping (WorkspaceProfile) -> Void
     ) -> some View {
         WorkspaceOnboardingView(
             model: onboardingModel,
             onOpenNativeFeature: onOpenNativeFeature,
             onOpenHostedCompatibility: onOpenHostedCompatibility,
-            onOpenWorkspaceBrowser: onOpenWorkspaceBrowser
+            onOpenWorkspaceBrowser: onOpenWorkspaceBrowser,
+            onOpenAuditCenter: onOpenAuditCenter
         )
     }
 

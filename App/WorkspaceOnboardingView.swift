@@ -6,6 +6,7 @@ struct WorkspaceOnboardingView: View {
     let onOpenNativeFeature: (WorkspaceProfile) -> Void
     let onOpenHostedCompatibility: (WorkspaceProfile) -> Void
     let onOpenWorkspaceBrowser: (WorkspaceProfile) -> Void
+    let onOpenAuditCenter: (WorkspaceProfile) -> Void
     @FocusState private var focusedField: Field?
 
     private enum Field { case name, endpoint }
@@ -64,6 +65,9 @@ struct WorkspaceOnboardingView: View {
                 },
                 onOpenWorkspaceBrowser: {
                     onOpenWorkspaceBrowser(configuration)
+                },
+                onOpenAuditCenter: {
+                    onOpenAuditCenter(configuration)
                 },
                 onRemove: { Task { await model.reset() } }
             )
@@ -241,6 +245,7 @@ private struct WorkspaceReadyView: View {
     let onOpenNativeFeature: () -> Void
     let onOpenHostedCompatibility: () -> Void
     let onOpenWorkspaceBrowser: () -> Void
+    let onOpenAuditCenter: () -> Void
     let onRemove: () -> Void
     @State private var isRemovalPresented = false
 
@@ -260,32 +265,9 @@ private struct WorkspaceReadyView: View {
             )
             .font(.caption)
             .foregroundStyle(.secondary)
-            HStack {
-                if let nativeRoute = WorkspaceNativeFeatureRoute(profile: configuration) {
-                    Button(nativeRoute.buttonTitle) {
-                        onOpenNativeFeature()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("open-native-workspace-feature")
-                }
-                if configuration.supportsHostedCompatibilityOrigin {
-                    Button("Open hosted compatibility workspace") {
-                        onOpenHostedCompatibility()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityHint("Opens webui.thox.ai after your explicit hosted workspace authorization")
-                    .accessibilityIdentifier("open-hosted-compatibility")
-                }
-                if configuration.supportsLocalWorkspaceBrowser {
-                    Button("Browse local files") {
-                        onOpenWorkspaceBrowser()
-                    }
-                    .accessibilityHint("Choose a local folder for a confined read-only text browser")
-                    .accessibilityIdentifier("open-workspace-browser")
-                }
-                Spacer()
-                Button("Remove workspace", role: .destructive) { isRemovalPresented = true }
-                    .accessibilityIdentifier("remove-workspace")
+            ViewThatFits(in: .horizontal) {
+                HStack { workspaceActions }
+                VStack(alignment: .leading, spacing: 12) { workspaceActions }
             }
         }
         .padding(28)
@@ -302,6 +284,39 @@ private struct WorkspaceReadyView: View {
         } message: {
             Text("This removes the saved endpoint, boundary, and workspace credential from this device. It does not contact the endpoint or delete server-side data.")
         }
+    }
+
+    @ViewBuilder
+    private var workspaceActions: some View {
+        if let nativeRoute = WorkspaceNativeFeatureRoute(profile: configuration) {
+            Button(nativeRoute.buttonTitle) {
+                onOpenNativeFeature()
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("open-native-workspace-feature")
+        }
+        if configuration.supportsHostedCompatibilityOrigin {
+            Button("Open hosted compatibility workspace") {
+                onOpenHostedCompatibility()
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityHint("Opens webui.thox.ai after your explicit hosted workspace authorization")
+            .accessibilityIdentifier("open-hosted-compatibility")
+        }
+        if configuration.supportsLocalWorkspaceBrowser {
+            Button("Browse local files") {
+                onOpenWorkspaceBrowser()
+            }
+            .accessibilityHint("Choose a local folder for a confined read-only text browser")
+            .accessibilityIdentifier("open-workspace-browser")
+        }
+        Button("Audit policy & export") {
+            onOpenAuditCenter()
+        }
+        .accessibilityHint("Opens workspace-scoped retention controls and redacted export")
+        .accessibilityIdentifier("open-audit-center")
+        Button("Remove workspace", role: .destructive) { isRemovalPresented = true }
+            .accessibilityIdentifier("remove-workspace")
     }
 
 }

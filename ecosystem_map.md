@@ -48,7 +48,7 @@ flowchart LR
 
 ## Current architecture
 
-The current v4.2 app has a dependency-free Shared Core plus native SwiftUI workspace onboarding for local-device, private-network, and explicitly consented hosted profiles. It persists validated profile metadata locally without credentials. The persistent `WKWebView` remains only as an exact-origin `https://webui.thox.ai` compatibility surface after hosted authorization. Native provider transport, Keychain credentials, chat, Hermes, War Room, encrypted history, and durable audit persistence remain in progress.
+The current v4.2 app has a dependency-free Shared Core plus native SwiftUI workspace onboarding for local-device, private-network, and explicitly consented hosted profiles. It persists validated profile metadata locally without credentials. Linked standalone packages now provide workspace-scoped Keychain storage, bounded exact-origin Apple transport, Open WebUI discovery/model contracts, and buffered Hermes run/approval/SSE contracts. The persistent `WKWebView` remains only as an exact-origin `https://webui.thox.ai` compatibility surface after hosted authorization. Credential UI wiring, authenticated chat, live Hermes streaming/review UI, War Room, encrypted history, and durable audit persistence remain in progress.
 
 ## Integration points
 

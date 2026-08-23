@@ -26,6 +26,12 @@ settings:
 packages:
   WarRoomCore:
     path: Packages/WarRoomCore
+  WarRoomAppleInfrastructure:
+    path: Packages/WarRoomAppleInfrastructure
+  WarRoomOpenWebUI:
+    path: Packages/WarRoomOpenWebUI
+  WarRoomHermes:
+    path: Packages/WarRoomHermes
 
 targets:
   ThoxWarRoom macOS:
@@ -52,6 +58,9 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
       - package: WarRoomCore
+      - package: WarRoomAppleInfrastructure
+      - package: WarRoomOpenWebUI
+      - package: WarRoomHermes
     scheme:
       testTargets:
         - ThoxWarRoomTests macOS
@@ -80,6 +89,9 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: NO
     dependencies:
       - package: WarRoomCore
+      - package: WarRoomAppleInfrastructure
+      - package: WarRoomOpenWebUI
+      - package: WarRoomHermes
     scheme:
       testTargets:
         - ThoxWarRoomTests iOS

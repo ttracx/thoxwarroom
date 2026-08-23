@@ -42,7 +42,11 @@ thoxwarroom/
 ├── Tests/
 │   ├── ThoxWarRoomTests.swift  # Navigation policy + load state machine tests
 │   └── WorkspaceOnboardingTests.swift # Boundary, consent, persistence, and gate tests
-├── Packages/WarRoomCore/       # Shared endpoint, workspace, audit, credential/transport seams
+├── Packages/
+│   ├── WarRoomCore/            # Endpoint, workspace, audit, credential/transport seams
+│   ├── WarRoomAppleInfrastructure/ # Keychain + scoped URLSession transport
+│   ├── WarRoomOpenWebUI/       # Bounded discovery + provisional model catalog
+│   └── WarRoomHermes/          # Run/status/SSE/approval/stop contracts
 ├── scripts/
 │   ├── gen_appiconset.py       # Regenerate THOX-green chip-mark icons
 │   ├── build_macos.sh          # Developer ID signed, notarized, stapled macOS DMG
@@ -132,7 +136,7 @@ xcodebuild \
     test
 ```
 
-37 current tests cover 16 Shared Core cases plus 21 integrated macOS app cases, including:
+82 current tests cover 61 standalone package cases plus 21 integrated macOS app cases, including:
 
 - Base URL is `https://webui.thox.ai`
 - User-activated safe HTTPS off-domain URLs → external
@@ -148,6 +152,10 @@ xcodebuild \
 - Local/private/hosted boundary validation and explicit hosted consent
 - Metadata round-trip, corrupt-state recovery, deletion, and credential rejection
 - Exact-host compatibility availability; suffixes, ports, and paths remain denied
+- Workspace-scoped, non-synchronizing Keychain behavior and typed failures
+- Cookie/cache-free transport, exact-origin redirects, bounded bodies, and safe bearer handling
+- Open WebUI discovery/model-contract decoding without live-network tests
+- Hermes run routing, response correlation, bounded fragmented SSE parsing, canonical approvals, and cancellation
 
 ## Design system
 
@@ -168,8 +176,9 @@ The app icon is a THOX emerald rounded square with a stylized "chip" mark (3 dar
 2.46.0 into the ignored `.tools/` directory, verifies the official release
 archive SHA-256 before extraction, and runs `scripts/ci_unsigned.sh`. The
 unsigned lane regenerates the Xcode project and icons twice to detect drift,
-validates the asset catalogs, runs the macOS unit tests, and builds the iOS app
-and test bundle for a generic Simulator. It never reads signing secrets or
+validates the asset catalogs, tests every standalone Swift package with warnings
+as errors, runs the macOS unit tests, and builds the iOS app and test bundle for
+a generic Simulator. It never reads signing secrets or
 calls archive, export, upload, notarization, or release-package commands.
 
 GitHub Actions runs this same lane for pull requests and pushes to `main` on a

@@ -48,7 +48,7 @@ final class URLSessionProviderTransportTests: XCTestCase {
     }
 
     func testRejectsRequestAndResponseBodiesOverPolicyLimits() async throws {
-        let policy = ProviderTransportPolicy(
+        let policy = try ProviderTransportPolicy(
             maximumRequestBodyBytes: 2,
             maximumResponseBodyBytes: 3,
             requestTimeout: 1,
@@ -87,6 +87,13 @@ final class URLSessionProviderTransportTests: XCTestCase {
                 .responseBodyTooLarge(limit: 3)
             )
         }
+    }
+
+    func testRejectsInvalidPolicyWithoutCrashing() {
+        XCTAssertThrowsError(try ProviderTransportPolicy(maximumRequestBodyBytes: -1))
+        XCTAssertThrowsError(try ProviderTransportPolicy(maximumResponseBodyBytes: -1))
+        XCTAssertThrowsError(try ProviderTransportPolicy(requestTimeout: 0))
+        XCTAssertThrowsError(try ProviderTransportPolicy(requestTimeout: 2, resourceTimeout: 1))
     }
 
     func testRejectsInvalidBearerEncodingAndHeaderInjection() async throws {

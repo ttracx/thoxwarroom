@@ -21,6 +21,19 @@ Evidence is recorded per platform and must not be generalized across lanes.
 
 No API private key or bearer token is stored in this repository or this evidence file.
 
+## 2026-08-23 native foundation integration
+
+- `WarRoomCore`: 16/16 tests passed.
+- `WarRoomAppleInfrastructure`: 14/14 tests passed with warnings as errors.
+- `WarRoomOpenWebUI`: 14/14 offline tests passed with warnings as errors.
+- `WarRoomHermes`: 17/17 offline tests passed with warnings as errors.
+- Integrated macOS app: 21/21 tests passed with all four packages linked.
+- Generic iOS Simulator app/test build: succeeded with all four packages linked.
+- iPhone 17 Pro Test simulator: app installed and launched; native `Private workspace` empty state rendered.
+
+This is source, simulator, and local build evidence. It is not authenticated
+private-provider, physical-device, TestFlight, notarization, or release evidence.
+
 ## 2026-08-23 macOS unsigned packaging validation
 
 - Target: `ThoxWarRoom macOS`, Release, arm64.

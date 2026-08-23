@@ -21,6 +21,13 @@ python3 scripts/gen_appiconset.py
 python3 scripts/validate_appiconsets.py
 python3 scripts/validate_generated_drift.py "$XCODEGEN_BIN"
 
+echo "==> Testing standalone Swift packages with warnings as errors"
+for package_manifest in Packages/*/Package.swift; do
+    package_dir="${package_manifest%/Package.swift}"
+    echo "==> swift test: $package_dir"
+    swift test --package-path "$package_dir" -Xswiftc -warnings-as-errors
+done
+
 DERIVED_DATA="${CI_DERIVED_DATA:-build/unsigned-ci-derived}"
 
 echo "==> Building macOS tests without signing"

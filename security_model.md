@@ -64,11 +64,12 @@ and hosted destinations are distinct values. Hosted access requires affirmative
 authorization and HTTPS; private-network HTTP and non-default ports require an
 explicit policy choice. These checks perform no DNS or network access.
 
-This syntactic classification is only the first egress gate. The future transport
-adapter must compare resolved addresses with the declared boundary on every
-connection and redirect, prevent DNS rebinding, enforce TLS trust, and avoid
-sending credentials until those checks pass. WR-002 defines protocol seams but
-does not persist credentials or make requests.
+This syntactic classification is only the first egress gate.
+`WarRoomAppleInfrastructure` now supplies a cookie-free/cache-free ephemeral
+transport with exact-origin redirects, bounded request/response bodies, typed
+non-sensitive failures, and bearer injection only at send time. It does not yet
+compare resolved addresses with the declared boundary on every connection, so
+DNS rebinding and live TLS/private-endpoint validation remain integration gates.
 
 Audit events redact every field marked sensitive plus secret-like field names
 before they cross the recording seam. Full prompts, documents, credentials, and
@@ -87,7 +88,8 @@ Record authentication outcomes, workspace/profile changes, Hermes approvals/deni
 
 ## Current known risks
 
-- Native onboarding stores validated profile metadata in local preferences, but the endpoint has not yet been connected through a DNS-rebinding-resistant transport and credentials do not yet have a concrete Keychain adapter.
+- Native onboarding stores validated profile metadata in local preferences. A concrete workspace-scoped, non-synchronizing `WhenUnlockedThisDeviceOnly` Keychain adapter exists, but credential enrollment/deletion is not yet connected to the UI or verified against a real provider.
+- The concrete transport enforces exact-origin redirects and local resource bounds but is not yet DNS-rebinding-resistant and has not completed live certificate/private-endpoint tests.
 - The hosted compatibility surface still uses the default persistent website data store after an exact scheme/host/port/path authorization. Its cookies are not yet isolated per workspace.
 - There is no explicit encrypted chat/document store, durable local audit store, RBAC, privacy manifest, or verified full-data deletion/export workflow.
 - The macOS release script now requires Developer ID Application signing, rejects `get-task-allow`, uses a Keychain-backed notary profile, staples before final staging, and validates the exact final DMG and mounted app. A live signed/notarized run and clean-device behavior are still not proven. The iOS archive/export is Apple Distribution signed and provisioned for `DVJ6Z5343U.ai.thox.warroom`; upload remains blocked because App Store Connect has no app record for the existing bundle ID.

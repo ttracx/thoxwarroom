@@ -18,11 +18,13 @@ public struct ProviderTransportPolicy: Equatable, Sendable {
         maximumResponseBodyBytes: Int = 10 * 1_024 * 1_024,
         requestTimeout: TimeInterval = 30,
         resourceTimeout: TimeInterval = 60
-    ) {
-        precondition(maximumRequestBodyBytes >= 0)
-        precondition(maximumResponseBodyBytes >= 0)
-        precondition(requestTimeout > 0)
-        precondition(resourceTimeout >= requestTimeout)
+    ) throws {
+        guard maximumRequestBodyBytes >= 0,
+              maximumResponseBodyBytes >= 0,
+              requestTimeout > 0,
+              resourceTimeout >= requestTimeout else {
+            throw ProviderTransportPolicyError.invalidLimits
+        }
         self.maximumRequestBodyBytes = maximumRequestBodyBytes
         self.maximumResponseBodyBytes = maximumResponseBodyBytes
         self.requestTimeout = requestTimeout
@@ -30,7 +32,29 @@ public struct ProviderTransportPolicy: Equatable, Sendable {
     }
 
     /// Conservative defaults for interactive provider traffic.
-    public static let secureDefault = ProviderTransportPolicy()
+    public static let secureDefault = ProviderTransportPolicy(
+        validatedMaximumRequestBodyBytes: 2 * 1_024 * 1_024,
+        maximumResponseBodyBytes: 10 * 1_024 * 1_024,
+        requestTimeout: 30,
+        resourceTimeout: 60
+    )
+
+    private init(
+        validatedMaximumRequestBodyBytes: Int,
+        maximumResponseBodyBytes: Int,
+        requestTimeout: TimeInterval,
+        resourceTimeout: TimeInterval
+    ) {
+        self.maximumRequestBodyBytes = validatedMaximumRequestBodyBytes
+        self.maximumResponseBodyBytes = maximumResponseBodyBytes
+        self.requestTimeout = requestTimeout
+        self.resourceTimeout = resourceTimeout
+    }
+}
+
+/// Invalid resource limits rejected before a transport is created.
+public enum ProviderTransportPolicyError: Error, Equatable, Sendable {
+    case invalidLimits
 }
 
 /// Errors produced before, during, or after scoped provider transport.

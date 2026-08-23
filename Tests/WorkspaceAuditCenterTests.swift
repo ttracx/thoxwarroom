@@ -21,8 +21,10 @@ final class WorkspaceAuditCenterModelTests: XCTestCase {
         XCTAssertEqual(applyCallCount, 0)
     }
 
-    func testFiniteSelectionIsValidatedAndIndefiniteIsExplicit() {
+    func testFiniteSelectionIsValidatedAndIndefiniteIsExplicit() async {
         let model = makeModel(coordinator: AuditLifecycleCoordinatorStub())
+        model.load()
+        await model.waitForCurrentOperation()
 
         model.finiteDays = AuditRetentionDays.minimum - 1
         model.prepareSaveConfirmation()
@@ -50,6 +52,8 @@ final class WorkspaceAuditCenterModelTests: XCTestCase {
     func testSaveRequiresExactDestructiveConfirmationBeforePersistence() async throws {
         let coordinator = AuditLifecycleCoordinatorStub()
         let model = makeModel(coordinator: coordinator)
+        model.load()
+        await model.waitForCurrentOperation()
         model.finiteDays = 90
 
         model.prepareSaveConfirmation()
@@ -137,6 +141,32 @@ final class WorkspaceAuditCenterModelTests: XCTestCase {
 
         XCTAssertEqual(model.phase, .failed(WorkspaceAuditCenterModel.loadFailureMessage))
         XCTAssertNil(model.currentPolicy)
+    }
+
+    func testFailedReloadClearsStalePolicyAndDisablesApplication() async throws {
+        let coordinator = AuditLifecycleCoordinatorStub(
+            policy: try makePolicy(retention: .indefinite)
+        )
+        let model = makeModel(coordinator: coordinator)
+        model.load()
+        await model.waitForCurrentOperation()
+        XCTAssertTrue(model.canApply)
+
+        let otherID = WorkspaceID(
+            rawValue: UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+        )
+        await coordinator.replacePolicy(try ConfirmedWorkspaceAuditPolicy(
+            workspaceID: otherID,
+            revision: 1,
+            retention: .indefinite,
+            confirmedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        ))
+        model.load()
+        await model.waitForCurrentOperation()
+
+        XCTAssertNil(model.currentPolicy)
+        XCTAssertFalse(model.canApply)
+        XCTAssertFalse(model.canSave)
     }
 
     func testCancellationStopsLoadWithoutExposingUnderlyingState() async {
@@ -278,6 +308,10 @@ private actor AuditLifecycleCoordinatorStub: WorkspaceAuditLifecycleCoordinating
         self.errorMessage = errorMessage
         self.blocksPolicyLoad = blocksPolicyLoad
         self.returnsNotConfiguredOnApply = returnsNotConfiguredOnApply
+    }
+
+    func replacePolicy(_ policy: ConfirmedWorkspaceAuditPolicy?) {
+        storedPolicy = policy
     }
 
     func policy(for workspaceID: WorkspaceID) async throws -> ConfirmedWorkspaceAuditPolicy? {

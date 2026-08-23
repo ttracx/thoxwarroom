@@ -162,8 +162,8 @@ final class WorkspaceAuditCenterModel: ObservableObject {
     }
 
     var canLoad: Bool { !phase.isBusy && coordinator != nil }
-    var canSave: Bool { !phase.isBusy && coordinator != nil }
-    var canApply: Bool { !phase.isBusy && coordinator != nil && currentPolicy != nil }
+    var canSave: Bool { phase == .ready && coordinator != nil }
+    var canApply: Bool { phase == .ready && coordinator != nil && currentPolicy != nil }
     var canExport: Bool { !phase.isBusy && coordinator != nil }
 
     var currentPolicyLabel: String? {
@@ -179,6 +179,8 @@ final class WorkspaceAuditCenterModel: ObservableObject {
             if coordinator == nil { phase = .failed(Self.loadFailureMessage) }
             return
         }
+        currentPolicy = nil
+        lastRetentionResult = nil
         startOperation(phase: .loading) { [weak self] in
             guard let self else { return }
             do {

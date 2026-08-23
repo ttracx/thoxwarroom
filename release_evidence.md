@@ -35,6 +35,7 @@ The unsigned DMG is build evidence only and is not a distributable release.
 
 ## 2026-08-23 native CI activation
 
-- Initial run `32638587436` failed before executing any step because the `macos-26` runner did not start.
-- The workflow was moved to the generally available `macos-15` runner. This unsigned lane targets iOS 17+ and macOS 14+ and does not consume release secrets.
-- A green GitHub Actions run is still required before WR-010 is considered implemented remotely.
+- Runs `32638587436` and `32638619138` each failed before executing any step.
+- GitHub's check annotation states: `The job was not started because your account is locked due to a billing issue.`
+- The intended `macos-26` runner was retained because neither job reached runner selection or source execution.
+- Local `./scripts/bootstrap.sh` passed the same secret-free lane, but GitHub billing must be unlocked and a remote run must pass before WR-010 is considered implemented remotely.

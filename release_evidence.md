@@ -1,5 +1,16 @@
 # Release Evidence
 
+## 2026-08-23 fresh main archive and TestFlight retry
+
+- Source: pushed `main` at `7cccff895f2cf1b8e327f7f149654d83352120d1`.
+- Fresh archive/export: `build/ios-7cccff8/ThoxWarRoom.xcarchive` and `build/ios-7cccff8/export/ThoxWarRoom.ipa`.
+- Signature: `Apple Distribution: THOX AI LLC (DVJ6Z5343U)`; bundle `ai.thox.warroom`; TeamIdentifier `DVJ6Z5343U`; strict deep verification passed.
+- Provisioning: `iOS Team Store Provisioning Profile: ai.thox.warroom`; application identifier `DVJ6Z5343U.ai.thox.warroom`; `beta-reports-active=true`; `get-task-allow=false`.
+- IPA SHA-256: `ef47a295c4bfeb43625f05141da7000afd37aa3989c9fce90ebe881ebb5141c3`.
+- TestFlight upload was attempted with the externally supplied THOX AI LLC App Store Connect API key and rejected before transfer: `Cannot determine the Apple ID from Bundle ID 'ai.thox.warroom' and platform 'IOS'. (19)` followed by `ExitFailure (31)`.
+- Apple documents that new App Store Connect app records cannot be created through its API. The record must be created on the website; the in-app browser reached Apple sign-in but has no authenticated owner session.
+- Remote GitHub run `32646054643` for `7cccff8` had one job with zero steps and the exact annotation `The job was not started because your account is locked due to a billing issue.`
+
 ## 2026-08-23 contract/audit/streaming wave
 
 - `WarRoomAppleInfrastructure` now supplies a concrete encrypted durable-audit store: workspace-scoped AES-256-GCM ciphertext, canonical redaction revalidation, actor-serialized ordered append, internal SHA-256 chain, idempotent IDs, bounded capacity/pages, time filtering, and digest-bound cursors.

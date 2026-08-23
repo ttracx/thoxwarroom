@@ -41,10 +41,15 @@ validate_asc_credentials() {
         *.p8) ;;
         *) echo "ERROR: ASC_API_KEY_P8 must reference a .p8 file" >&2; return 1 ;;
     esac
-    xcrun altool --generate-jwt \
+    # altool writes the generated bearer token to stderr on some Xcode
+    # versions. Suppress both streams so validation can never disclose it.
+    if ! xcrun altool --generate-jwt \
         --api-key "$ASC_API_KEY_ID" \
         --api-issuer "$ASC_API_ISSUER_ID" \
-        --p8-file-path "$ASC_API_KEY_P8" >/dev/null
+        --p8-file-path "$ASC_API_KEY_P8" >/dev/null 2>&1; then
+        echo "ERROR: App Store Connect API credential validation failed" >&2
+        return 1
+    fi
     echo "==> App Store Connect API credential structure validated"
 }
 

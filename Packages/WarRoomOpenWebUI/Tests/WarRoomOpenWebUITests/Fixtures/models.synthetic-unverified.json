@@ -1,0 +1,9 @@
+{
+  "_fixture_notice": "Synthetic only; authenticated live response remains unverified",
+  "data": [
+    {
+      "id": "local-test-model",
+      "name": "Local Test Model"
+    }
+  ]
+}

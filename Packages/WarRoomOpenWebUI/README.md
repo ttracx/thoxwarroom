@@ -1,0 +1,50 @@
+# WarRoomOpenWebUI
+
+Clean-room Swift provider for the small Open WebUI contract currently captured
+by ThoxWarRoom. It depends only on `WarRoomCore` and performs network work
+through the caller-supplied `ProviderTransport` seam.
+
+## Implemented
+
+- `GET /health`
+- `GET /api/version`
+- `GET /api/config`
+- capability-gated `GET /api/models`
+- typed DTOs and non-sensitive errors
+- response-size checks before text or JSON decoding
+- cancellation propagation
+- fully offline transport-double tests
+
+`OpenWebUIProvider.descriptor` advertises only `modelCatalog`. The package does
+not claim chat, streaming, history, citations, or native authentication support.
+
+## Evidence boundary
+
+Public unauthenticated responses for health, version, configuration, and the
+authentication boundary were observed on 2026-08-23 and are represented by the
+sanitized test fixtures. The deployment-specific identifier and OAuth
+configuration were deliberately omitted.
+
+The authenticated `/api/models` response was not observed. Its fixture is
+explicitly synthetic, and the provisional decoder accepts only a conservative
+`{ "data": [{ "id": ..., "name": ...? }] }` envelope. A mismatch fails with
+`OpenWebUIProviderError.decodingFailed`; it does not guess or fall back to an
+untyped payload.
+
+Still unverified and intentionally absent:
+
+- password collection or sign-in;
+- credential issuance, refresh, revocation, or cookie-to-token handoff;
+- chat creation, chat history, completions, streaming, and citations;
+- any live authenticated response fixture.
+
+Credentials are opaque `ProviderCredential` values and are forwarded only to
+the protected model request. Public health, version, and configuration probes
+never receive them. Provider response bodies and underlying transport errors
+are not included in public errors.
+
+## Test
+
+```bash
+swift test --package-path Packages/WarRoomOpenWebUI
+```

@@ -20,15 +20,17 @@ evidence is retained separately in `release_evidence.md`.
 
 The shared record exists under THOX AI LLC. iOS and macOS build 4 are valid,
 `IN_BETA_TESTING`, and assigned to the `THOX AI LLC Internal` TestFlight group.
-Builds 2 and 3 remain assigned as prior evidence. The single tester is still
-invited; invitation acceptance and physical install/launch are not observed.
+Builds 2 and 3 remain assigned as prior evidence. The group currently reports
+four testers and six platform builds. App Store Connect reports iOS build 4
+installed on one iPad; direct launch/session proof is absent, the connected
+iPhone remains on build 3, and macOS build 4 is visible but not installed.
 
 ## Current build identity
 
 | Property | Value |
 |---|---|
 | Marketing version | `4.2.0` |
-| Build number | `4` |
+| Build number | `5` release candidate (`4` is the latest Apple-accepted build) |
 | Bundle ID | `ai.thox.warroom` |
 | Team | THOX AI LLC (`DVJ6Z5343U`) |
 | iOS minimum | iOS 17 |
@@ -36,8 +38,8 @@ invited; invitation acceptance and physical install/launch are not observed.
 | iOS device family | iPhone |
 
 Every accepted upload must use a build number not previously accepted for the
-same version. `CURRENT_PROJECT_VERSION` is now `4`; increment it to `5` before
-any replacement upload after Apple accepts build 4.
+same version. `CURRENT_PROJECT_VERSION` is now `5` for the next iOS and macOS
+upload after Apple accepted build 4.
 
 ## TestFlight beta draft
 
@@ -55,10 +57,10 @@ boundaries are verified.
 
 ### What to test
 
-1. Create local-device and private-network workspaces and confirm the displayed
+1. Create local-device and private-network workspaces and confirm each displayed
    endpoint/boundary before connecting.
-2. Relaunch and confirm the selected workspace remains available while secrets
-   are never displayed.
+2. Switch between workspaces, relaunch, and confirm the active selection remains
+   available while secrets are never displayed.
 3. Add/remove a provider credential and confirm removal does not claim to revoke
    server-side access.
 4. Load Open WebUI discovery/models, a Hermes read-only run, or a MeshStack

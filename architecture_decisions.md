@@ -203,3 +203,27 @@
 - **Compliance impact:** explicit confirmation and retained application timestamps are reviewable control evidence, not legal approval of a retention period or proof of external non-repudiation.
 - **Final choice:** saving confirms policy without pruning; application requires a second destructive confirmation while the app is active; absent or unverifiable policy disables application.
 - **Follow-up:** validate locked-device and interruption behavior through physical TestFlight installs; add scheduling only with a separately reviewable authorization and execution policy.
+
+## ADR-018: Verify every active workspace selection and isolate deletion
+
+- **Decision:** Allow multiple encrypted workspace profiles, but persist a workspace as active only after its ciphertext decrypts and its current provider and endpoint policy revalidate. Deleting the active workspace erases only its scoped credential/profile state and selects a remaining profile only after the same verification.
+- **Context:** The single-active-workspace flow forced operators to destroy one private workspace before configuring another and made cross-provider testing unnecessarily risky.
+- **Options considered:** keep one workspace; store a plaintext catalog; trust cached profile metadata; enumerate encrypted profiles and verify at every selection boundary.
+- **Tradeoffs:** encrypted enumeration and revalidation add bounded local I/O and make corruption fail the catalog closed, but avoid plaintext endpoint/provider catalogs and stale capability trust.
+- **Security impact:** the selector stores only a UUID, unknown selections do not alter it, deletion remains credential-first and journaled, and a corrupt or missing fallback cannot silently become active.
+- **Local-first impact:** profiles, selectors, credentials, keys, and lifecycle state remain on device without telemetry or cloud synchronization.
+- **Compliance impact:** workspace isolation and deterministic deletion evidence are implementation controls, not proof of tenant authorization, records-retention compliance, or server-side credential revocation.
+- **Final choice:** expose explicit add/switch/remove controls backed by encrypted enumeration, verified selection, and isolated fallback behavior.
+- **Follow-up:** add profile revision/CAS, opaque routing indexes, persisted security-scoped bookmarks, background recovery, and physical locked-device lifecycle testing.
+
+## ADR-019: Reject URLSession hostname rewriting for DNS pinning
+
+- **Decision:** Do not ship the attempted URLSession design that rewrites an HTTPS request hostname to a resolved IP address and restores only the HTTP `Host` header.
+- **Context:** DNS rebinding resistance requires binding a validated answer to the actual connection while retaining TLS identity for the logical hostname.
+- **Options considered:** URLSession IP-literal URL plus `Host`; preflight-only DNS checks; retain the current exact-origin transport and document the gate; implement a reviewed Network.framework transport that controls the peer address and TLS server name.
+- **Tradeoffs:** leaving DNS rebinding as an explicit gate delays private-provider hardening, but avoids breaking virtual-host TLS or claiming a control that tests only resolver policy rather than the real connection.
+- **Security impact:** a credential-free live probe reached the logical host normally but the IP-literal URL failed TLS before a usable trust challenge. The candidate was removed; current transport behavior and known-risk documentation remain unchanged.
+- **Local-first impact:** no cloud dependency, telemetry, credential reuse, or endpoint exception was introduced.
+- **Compliance impact:** rejected prototype evidence is not a deployed security control; DNS-bound transport remains required before high-trust private-provider release claims.
+- **Final choice:** preserve the working exact-origin URLSession transport and require a connection primitive that supports both an approved peer address and original-host SNI/trust.
+- **Follow-up:** design and independently review a bounded Network.framework HTTP/TLS transport, then run live private-endpoint and physical-device certificate tests before adoption.

@@ -10,9 +10,9 @@ Evidence must remain separated:
 
 - **Historical implementation evidence:** tag `v4.1.0` / commit `96ca830` contains the former Flutter product and its Hermes, War Room, chat, automation, workspace, memory, insights, and platform modules. This is useful behavior inventory, not current runtime or release evidence.
 - **Current source evidence:** current native packages implement typed, bounded, testable contracts without copying the GPL-era runtime.
-- **Current local validation:** 193 package tests pass with warnings-as-errors; 80 integrated macOS app tests pass; seven Python release/security tests, deterministic project/assets, privacy checks, and the generic iOS Simulator test build pass.
+- **Current local validation:** 214 package tests pass with warnings-as-errors; 97 integrated macOS app tests pass; seven Python release/security tests, deterministic project/assets, privacy checks, and the generic dual-architecture iOS Simulator test build pass for the build 5 candidate.
 - **Current signing evidence:** final-source iOS and native macOS App Store build 4 artifacts from pushed SHA `4518091` uploaded successfully, reached Apple `VALID` / `IN_BETA_TESTING`, and are assigned to the THOX internal TestFlight group.
-- **Current external blockers:** invitation acceptance and physical iPhone/Mac TestFlight execution are unobserved. GitHub jobs stop before all steps because the account is locked by a billing issue. A Developer ID Application certificate is unavailable for direct macOS notarization.
+- **Current external blockers:** App Store Connect reports iOS build 4 installed on one iPad, but direct launch/runtime evidence is unobserved; the connected iPhone remains on build 3 and the Mac TestFlight catalog offers build 4 for installation. GitHub jobs stop before all steps because the account is locked by a billing issue. A Developer ID Application certificate is unavailable for direct macOS notarization.
 
 ## Hermes-era inventory and current disposition
 
@@ -21,7 +21,7 @@ Evidence must remain separated:
 | Open WebUI chat | Streaming, history, folders, citations, files, voice | Bounded discovery and protected model catalog; executable native-chat evidence gate stays fail-closed | Capture a sanitized authenticated non-production credential/request/response/stream/history/citation contract |
 | Hermes Agent | Runs, jobs, streaming, approvals, schedules, provenance | Typed run/status/approval/stop contracts, app-wired read-only review over bounded incremental URLSession SSE, encrypted durable one-shot operation evidence, and a fail-closed human review surface | Verified authorization/live mutation composition, reconnect/cursor contract, and live private-service evidence |
 | War Room | Fleet, Mesh, routes, alerts; some mock data | Credential- and canonical-MeshID-gated read-only Mesh dashboard with provenance and partial states | Sanctioned private gateway capture and device/Mac runtime evidence |
-| Workspace | Models, knowledge, tools, skills, file browser | Validated provider profiles encrypted with device-only keys, resumable credential-first deletion, and confined read-only local text browser | Profile revision/CAS, opaque routing index, multi-workspace lifecycle, persisted security-scoped bookmarks |
+| Workspace | Models, knowledge, tools, skills, file browser | Multiple validated provider profiles encrypted with device-only keys, explicit active selection, isolated resumable credential-first deletion with verified fallback selection, and confined read-only local text browser | Profile revision/CAS, opaque routing index, persisted security-scoped bookmarks, background deletion recovery |
 | Audit | Event intent in historical features | Redaction-revalidated AES-GCM generations with bounded paging/export, device-only rollback anchor, crash-safe retention, cooperative cross-process serialization, encrypted confirmed-policy persistence, and native explicit apply/export controls | Automatic scheduler, signed export/external anchoring, app mutation wiring |
 | Automations and mutations | Editors, schedules, cards | One-shot coordinator, encrypted operation store, replay rejection, crash reconciliation, and human review UI; production host remains disabled | Verified RBAC/policy and current live mutation contract before transport composition |
 | Platform/release | iOS/macOS integrations and historical workflows | Native targets, deterministic project generation, privacy manifest, SPDX SBOM, valid internally testing iOS/macOS build 4 artifacts | Physical TestFlight install/launch and Developer ID notarized Mac artifact |
@@ -44,6 +44,7 @@ The historical modules are not treated as production-ready. Git proves source ex
 - A human-review mutation UI that shows the exact workspace, run, decision scope, and correlation ID; persistent/destructive decisions require a second confirmation. Production composition remains fail-closed until authorization and the live mutation contract are verified.
 - Cooperative cross-actor/process audit transaction serialization with cancellation-safe bounded locking and no lock-file unlink race.
 - Resumable device-only Keychain deletion journal preserving credential-first erasure across interruption.
+- Encrypted multi-workspace catalog with explicit active selection, deterministic verified fallback after active-workspace deletion, and isolated credential/profile erasure.
 - Local-boundary-only, operator-selected read-only workspace browser with descriptor-relative path confinement and bounded text preview.
 - Deterministic SPDX 2.3 source inventory and separate iOS, Mac App Store/TestFlight, and Developer ID release paths.
 - Deterministic unsigned validation and tested Apple privacy declarations.
@@ -55,9 +56,9 @@ The historical modules are not treated as production-ready. Git proves source ex
 3. Hermes approvals and other mutations remain unavailable in the production host because workspace authorization and the current live mutation contract are not verified. The durable store, reconciliation boundary, coordinator, and human-review UI now exist and are tested; enabling transport without those two external proofs would be unsafe.
 4. The device-only Keychain head anchor rejects whole-ledger rollback, divergent prefixes, and valid tail truncation, and recovers when ciphertext is ahead after a crash. This is a local rollback control, not external non-repudiation evidence.
 5. Audit locks are advisory and protect only cooperative writers sharing the same app-container lock root; each append remains O(n), with a 10,000-entry/16 MiB cap.
-6. Audit policy persistence/scheduling, signed full-data export, encrypted chat/document history, RBAC, opaque routing indexes, multi-workspace lifecycle, and background deletion recovery remain unfinished.
+6. Automatic audit scheduling, signed full-data export, encrypted chat/document history, RBAC, opaque routing indexes, persisted security-scoped bookmarks, and background deletion recovery remain unfinished. Encrypted audit-policy persistence and the interactive multi-workspace lifecycle are implemented.
 7. DNS-rebinding resistance, live endpoint authentication, physical locked-device behavior, and packaged-app workflows are not proven.
-8. iOS and native macOS TestFlight build 4 artifacts are valid and internally testing, but tester invitation acceptance and physical install/launch remain unobserved. Direct macOS release cannot complete without a THOX Developer ID Application signing/notarization path.
+8. iOS and native macOS TestFlight build 4 artifacts are valid and internally testing. App Store Connect reports build 4 installed on one iPad, but no direct launch/session proof exists; the connected iPhone remains on build 3 and macOS build 4 remains available but uninstalled. Direct macOS release cannot complete without a THOX Developer ID Application signing/notarization path.
 9. Remote CI is not evidence while GitHub jobs have zero steps due the account billing lock.
 10. The historical app is GPL-3.0 while current native `main` is MIT. Legacy implementation source must not be copied without an explicit legal choice.
 

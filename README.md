@@ -43,7 +43,10 @@ thoxwarroom/
 │   ├── gen_appiconset.py       # Regenerate THOX-green chip-mark icons
 │   ├── build_macos.sh          # Developer ID signed, notarized, stapled macOS DMG
 │   ├── build_ios.sh            # Archive + TestFlight upload
-│   ├── ci.sh                   # Local CI (no GitHub Actions)
+│   ├── bootstrap.sh            # Clean-clone tool bootstrap + unsigned CI
+│   ├── bootstrap_xcodegen.sh   # Pinned, checksum-verified local XcodeGen
+│   ├── ci_unsigned.sh          # Secret-free macOS tests + iOS build
+│   ├── ci.sh                   # Extended local packaging CI
 │   └── smoke_test.sh           # E2E launch + persistent login check
 ├── .env.example                # APPLE_ID / APPLE_PASSWORD placeholders
 ├── AGENTS.md                   # Project conventions for AI workers
@@ -53,11 +56,8 @@ thoxwarroom/
 ## Build & run
 
 ```bash
-# 1) Generate the Xcode project from project.yml
-xcodegen generate
-
-# 2) Build + test
-./scripts/ci.sh
+# 1) Clean-clone bootstrap + unsigned build/test (no global XcodeGen install)
+./scripts/bootstrap.sh
 
 # 3) Build a release-ready Developer ID + notarized macOS DMG.
 # NOTARY_PROFILE must already exist in the login Keychain.
@@ -154,7 +154,22 @@ The app icon is a THOX emerald rounded square with a stylized "chip" mark (3 dar
 
 ## CI
 
-`scripts/ci.sh` runs locally (no remote runners):
+`scripts/bootstrap.sh` is the clean-host entry point. It downloads XcodeGen
+2.46.0 into the ignored `.tools/` directory, verifies the official release
+archive SHA-256 before extraction, and runs `scripts/ci_unsigned.sh`. The
+unsigned lane regenerates the Xcode project and icons twice to detect drift,
+validates the asset catalogs, runs the macOS unit tests, and builds the iOS app
+and test bundle for a generic Simulator. It never reads signing secrets or
+calls archive, export, upload, notarization, or release-package commands.
+
+GitHub Actions runs this same lane for pull requests and pushes to `main` on a
+`macos-26` runner with read-only repository permissions. The workflow contains
+no signing or App Store credentials.
+
+The extended local packaging CI remains available when release credentials and
+packaging validation are intentionally in scope:
+
+`scripts/ci.sh` runs:
 
 1. Verify toolchain (`xcodebuild`, `xcrun`, `xcodegen`, `python3`, `iconutil`)
 2. `xcodegen generate`

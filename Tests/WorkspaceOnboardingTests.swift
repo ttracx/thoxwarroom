@@ -68,18 +68,21 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
     private var persistence: InMemoryEncryptedWorkspaceProfilePersistence!
+    private var deletionJournal: InMemoryWorkspaceDeletionJournal!
 
     override func setUp() {
         super.setUp()
         suiteName = "ai.thox.warroom.onboarding-tests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
         persistence = InMemoryEncryptedWorkspaceProfilePersistence()
+        deletionJournal = InMemoryWorkspaceDeletionJournal()
     }
 
     override func tearDown() {
         defaults.removePersistentDomain(forName: suiteName)
         defaults = nil
         persistence = nil
+        deletionJournal = nil
         suiteName = nil
         super.tearDown()
     }
@@ -89,7 +92,8 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
             credentialVault: vault,
-            persistence: persistence
+            persistence: persistence,
+            deletionJournal: deletionJournal
         )
         let profile = try await service.saveConfiguration(
             from: WorkspaceDraft(
@@ -125,7 +129,8 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
             credentialVault: vault,
-            persistence: persistence
+            persistence: persistence,
+            deletionJournal: deletionJournal
         )
         let profile = try await service.saveConfiguration(
             from: WorkspaceDraft(name: "Local Lab", endpoint: "http://127.0.0.1")
@@ -137,12 +142,18 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
         } catch {
             XCTAssertEqual(
                 error.localizedDescription,
-                "Workspace configuration is unavailable on this device."
+                "Workspace removal is waiting for secure credential access. Unlock this device and try again."
             )
         }
 
-        let preservedProfile = try await service.loadConfiguration()
-        XCTAssertEqual(preservedProfile, profile)
+        let preservedPayload = await persistence.payload(for: profile.id)
+        let pendingEntry = await deletionJournal.entry
+        XCTAssertNotNil(preservedPayload)
+        XCTAssertEqual(pendingEntry?.stage, .credentialDeletionPending)
+        XCTAssertEqual(
+            defaults.string(forKey: "workspace.active.v2"),
+            profile.id.rawValue.uuidString.lowercased()
+        )
     }
 
     func testCiphertextCleanupCanRetryAfterCryptographicErasure() async throws {
@@ -153,7 +164,8 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
             credentialVault: vault,
-            persistence: retryingPersistence
+            persistence: retryingPersistence,
+            deletionJournal: deletionJournal
         )
         let profile = try await service.saveConfiguration(
             from: WorkspaceDraft(name: "Local Lab", endpoint: "http://127.0.0.1")
@@ -165,7 +177,7 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
         } catch {
             XCTAssertEqual(
                 error.localizedDescription,
-                "Workspace configuration is unavailable on this device."
+                "Workspace removal is waiting for encrypted data cleanup. Try again."
             )
         }
         XCTAssertEqual(
@@ -173,17 +185,96 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
             profile.id.rawValue.uuidString.lowercased()
         )
 
-        try await service.deleteConfiguration()
+        let resumedService = EncryptedWorkspaceOnboardingService(
+            defaults: defaults,
+            credentialVault: vault,
+            persistence: retryingPersistence,
+            deletionJournal: deletionJournal
+        )
+        let loadedAfterResume = try await resumedService.loadConfiguration()
+        XCTAssertNil(loadedAfterResume)
 
         XCTAssertNil(defaults.string(forKey: "workspace.active.v2"))
         let deletedIDs = await vault.deletedIDs
-        XCTAssertEqual(deletedIDs, [profile.id, profile.id])
+        XCTAssertEqual(deletedIDs, [profile.id])
+        let finalEntry = await deletionJournal.entry
+        XCTAssertNil(finalEntry)
+    }
+
+    func testJournalCreationFailurePerformsNoDestructiveOperation() async throws {
+        let vault = OnboardingCredentialVaultStub()
+        let failingJournal = InMemoryWorkspaceDeletionJournal(saveFailureCalls: [1])
+        let service = EncryptedWorkspaceOnboardingService(
+            defaults: defaults,
+            credentialVault: vault,
+            persistence: persistence,
+            deletionJournal: failingJournal
+        )
+        let profile = try await service.saveConfiguration(
+            from: WorkspaceDraft(name: "Local Lab", endpoint: "http://127.0.0.1")
+        )
+
+        do {
+            try await service.deleteConfiguration()
+            XCTFail("Expected deletion journal creation to fail")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Secure workspace removal state is unavailable. No workspace data was removed."
+            )
+        }
+
+        let deletedCredentials = await vault.deletedIDs
+        let deletedWorkspaces = await persistence.deletedWorkspaceIDs
+        let preservedPayload = await persistence.payload(for: profile.id)
+        XCTAssertTrue(deletedCredentials.isEmpty)
+        XCTAssertTrue(deletedWorkspaces.isEmpty)
+        XCTAssertNotNil(preservedPayload)
+        XCTAssertNotNil(defaults.string(forKey: "workspace.active.v2"))
+    }
+
+    func testFailedPhaseAdvanceReplaysCredentialDeletionWithoutDeletingCiphertextEarly() async throws {
+        let vault = OnboardingCredentialVaultStub()
+        let failingJournal = InMemoryWorkspaceDeletionJournal(saveFailureCalls: [2])
+        let service = EncryptedWorkspaceOnboardingService(
+            defaults: defaults,
+            credentialVault: vault,
+            persistence: persistence,
+            deletionJournal: failingJournal
+        )
+        let profile = try await service.saveConfiguration(
+            from: WorkspaceDraft(name: "Local Lab", endpoint: "http://127.0.0.1")
+        )
+
+        do {
+            try await service.deleteConfiguration()
+            XCTFail("Expected the first phase advance to fail")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Workspace removal is waiting for secure credential access. Unlock this device and try again."
+            )
+        }
+
+        let preservedPayload = await persistence.payload(for: profile.id)
+        let pendingAfterFailure = await failingJournal.entry
+        XCTAssertNotNil(preservedPayload)
+        XCTAssertEqual(pendingAfterFailure?.stage, .credentialDeletionPending)
+
+        try await service.deleteConfiguration()
+
+        let deletedCredentials = await vault.deletedIDs
+        XCTAssertEqual(deletedCredentials, [profile.id, profile.id])
+        let finalEntry = await failingJournal.entry
+        XCTAssertNil(finalEntry)
+        XCTAssertNil(defaults.string(forKey: "workspace.active.v2"))
     }
 
     func testHostedProfileRequiresSeparateConsent() async {
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
-            persistence: persistence
+            persistence: persistence,
+            deletionJournal: deletionJournal
         )
         let draft = WorkspaceDraft(
             name: "Hosted Lab",
@@ -207,7 +298,8 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
     func testCredentialsInEndpointAreRejectedAndNeverPersisted() async {
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
-            persistence: persistence
+            persistence: persistence,
+            deletionJournal: deletionJournal
         )
         let draft = WorkspaceDraft(
             name: "Unsafe",
@@ -228,7 +320,8 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
     func testBoundaryMismatchIsShownAndNeverPersisted() async {
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
-            persistence: persistence
+            persistence: persistence,
+            deletionJournal: deletionJournal
         )
         let draft = WorkspaceDraft(
             name: "Wrong boundary",
@@ -249,7 +342,8 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
     func testCorruptMetadataFailsWithoutDeletingEvidence() async {
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
-            persistence: persistence
+            persistence: persistence,
+            deletionJournal: deletionJournal
         )
         let corruptData = Data("not-json".utf8)
         defaults.set(corruptData, forKey: "workspace.profile.v1")
@@ -278,7 +372,8 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
         defaults.set(try JSONEncoder().encode(legacy), forKey: "workspace.profile.v1")
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
-            persistence: persistence
+            persistence: persistence,
+            deletionJournal: deletionJournal
         )
 
         let migrated = try await service.loadConfiguration()
@@ -306,7 +401,8 @@ final class EncryptedWorkspaceOnboardingServiceTests: XCTestCase {
         await persistence.setReadBackFails(true)
         let service = EncryptedWorkspaceOnboardingService(
             defaults: defaults,
-            persistence: persistence
+            persistence: persistence,
+            deletionJournal: deletionJournal
         )
 
         do {
@@ -372,6 +468,34 @@ private actor InMemoryEncryptedWorkspaceProfilePersistence: EncryptedWorkspacePr
 }
 
 private enum InMemoryEncryptedPersistenceError: Error { case injectedFailure }
+
+private actor InMemoryWorkspaceDeletionJournal: WorkspaceDeletionJournal {
+    private(set) var entry: WorkspaceDeletionJournalEntry?
+    private var saveCallCount = 0
+    private var saveFailureCalls: Set<Int>
+
+    init(
+        entry: WorkspaceDeletionJournalEntry? = nil,
+        saveFailureCalls: Set<Int> = []
+    ) {
+        self.entry = entry
+        self.saveFailureCalls = saveFailureCalls
+    }
+
+    func pendingEntry() -> WorkspaceDeletionJournalEntry? { entry }
+
+    func save(_ entry: WorkspaceDeletionJournalEntry) throws {
+        saveCallCount += 1
+        if saveFailureCalls.remove(saveCallCount) != nil {
+            throw InMemoryWorkspaceDeletionJournalError.injectedFailure
+        }
+        self.entry = entry
+    }
+
+    func clear() { entry = nil }
+}
+
+private enum InMemoryWorkspaceDeletionJournalError: Error { case injectedFailure }
 
 private actor OnboardingCredentialVaultStub: CredentialVault {
     private let deleteFails: Bool

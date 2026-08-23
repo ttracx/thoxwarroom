@@ -12,11 +12,24 @@ protocol WorkspaceOnboardingServicing {
 enum WorkspaceOnboardingError: LocalizedError {
     case validation(String)
     case persistence
+    case deletionJournalUnavailable
+    case deletionPending(WorkspaceDeletionStage)
 
     var errorDescription: String? {
         switch self {
         case .validation(let message): message
         case .persistence: "Workspace configuration is unavailable on this device."
+        case .deletionJournalUnavailable:
+            "Secure workspace removal state is unavailable. No workspace data was removed."
+        case .deletionPending(let stage):
+            switch stage {
+            case .credentialDeletionPending:
+                "Workspace removal is waiting for secure credential access. Unlock this device and try again."
+            case .encryptedWorkspaceDeletionPending:
+                "Workspace removal is waiting for encrypted data cleanup. Try again."
+            case .selectorCleanupPending:
+                "Workspace removal is waiting for local state cleanup. Try again."
+            }
         }
     }
 }
@@ -69,6 +82,7 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
     private let activeWorkspaceKey: String
     private let credentialVault: any CredentialVault
     private let persistence: any EncryptedWorkspaceProfilePersisting
+    private let deletionJournal: any WorkspaceDeletionJournal
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private let legacyDecoder = JSONDecoder()
@@ -78,12 +92,14 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
         key: String = "workspace.profile.v1",
         activeWorkspaceKey: String = "workspace.active.v2",
         credentialVault: any CredentialVault = KeychainCredentialVault(),
-        persistence: (any EncryptedWorkspaceProfilePersisting)? = nil
+        persistence: (any EncryptedWorkspaceProfilePersisting)? = nil,
+        deletionJournal: any WorkspaceDeletionJournal = KeychainWorkspaceDeletionJournal()
     ) {
         self.defaults = defaults
         legacyKey = key
         self.activeWorkspaceKey = activeWorkspaceKey
         self.credentialVault = credentialVault
+        self.deletionJournal = deletionJournal
         if let persistence {
             self.persistence = persistence
         } else {
@@ -97,6 +113,7 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
 
     func loadConfiguration() async throws -> WorkspaceProfile? {
         do {
+            try await resumePendingDeletionIfNeeded()
             let repository = persistence
             if let activeID = try activeWorkspaceID() {
                 guard let payload = try await repository.loadProfilePayload(for: activeID) else {
@@ -128,6 +145,9 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
 
     func saveConfiguration(from draft: WorkspaceDraft) async throws -> WorkspaceProfile {
         do {
+            if let pending = try await pendingDeletionEntry() {
+                throw WorkspaceOnboardingError.deletionPending(pending.stage)
+            }
             let endpoint = try EndpointValidator.validate(
                 draft.endpoint,
                 declaredBoundary: draft.boundary,
@@ -175,6 +195,10 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
 
     func deleteConfiguration() async throws {
         do {
+            if let pending = try await pendingDeletionEntry() {
+                try await executeDeletion(pending)
+                return
+            }
             let selectedID = try activeWorkspaceID()
             let workspaceID: WorkspaceID
             if let selectedID {
@@ -185,16 +209,95 @@ final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
                 guard let profile = try await loadConfiguration() else { return }
                 workspaceID = profile.id
             }
-            // Secret deletion must succeed before encrypted profile/key deletion.
-            // On failure, all workspace evidence is preserved for a safe retry.
-            try await credentialVault.deleteCredential(for: workspaceID)
-            try await persistence.deleteWorkspace(workspaceID)
-            defaults.removeObject(forKey: activeWorkspaceKey)
-            defaults.removeObject(forKey: legacyKey)
+            let intent = WorkspaceDeletionJournalEntry(
+                workspaceID: workspaceID,
+                stage: .credentialDeletionPending
+            )
+            do {
+                try await deletionJournal.save(intent)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // No destructive operation begins unless its recovery intent is durable.
+                throw WorkspaceOnboardingError.deletionJournalUnavailable
+            }
+            try await executeDeletion(intent)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as WorkspaceOnboardingError {
+            throw error
+        } catch {
+            throw WorkspaceOnboardingError.persistence
+        }
+    }
+
+    private func resumePendingDeletionIfNeeded() async throws {
+        guard let pending = try await pendingDeletionEntry() else { return }
+        try await executeDeletion(pending)
+    }
+
+    private func pendingDeletionEntry() async throws -> WorkspaceDeletionJournalEntry? {
+        do {
+            return try await deletionJournal.pendingEntry()
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw WorkspaceOnboardingError.persistence
+            throw WorkspaceOnboardingError.deletionJournalUnavailable
+        }
+    }
+
+    private func executeDeletion(_ intent: WorkspaceDeletionJournalEntry) async throws {
+        var current = intent
+        do {
+            if current.stage != .selectorCleanupPending {
+                // Before destructive phases, bind the journal back to the active
+                // selector so a malformed or stale intent cannot target another workspace.
+                guard try activeWorkspaceID() == current.workspaceID else {
+                    throw WorkspaceOnboardingError.deletionPending(current.stage)
+                }
+            }
+            while true {
+                try Task.checkCancellation()
+                switch current.stage {
+                case .credentialDeletionPending:
+                    // Credentials are first. A failure leaves profile key, ciphertext,
+                    // selector, and the durable intent intact for a safe retry.
+                    try await credentialVault.deleteCredential(for: current.workspaceID)
+                    let next = WorkspaceDeletionJournalEntry(
+                        workspaceID: current.workspaceID,
+                        stage: .encryptedWorkspaceDeletionPending
+                    )
+                    try await deletionJournal.save(next)
+                    current = next
+                case .encryptedWorkspaceDeletionPending:
+                    // Repository deletion is itself key-first and idempotent. Retrying
+                    // can never provision a replacement key over leftover ciphertext.
+                    try await persistence.deleteWorkspace(current.workspaceID)
+                    let next = WorkspaceDeletionJournalEntry(
+                        workspaceID: current.workspaceID,
+                        stage: .selectorCleanupPending
+                    )
+                    try await deletionJournal.save(next)
+                    current = next
+                case .selectorCleanupPending:
+                    try clearLocalSelectors()
+                    try await deletionJournal.clear()
+                    return
+                }
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw WorkspaceOnboardingError.deletionPending(current.stage)
+        }
+    }
+
+    private func clearLocalSelectors() throws {
+        defaults.removeObject(forKey: activeWorkspaceKey)
+        defaults.removeObject(forKey: legacyKey)
+        guard defaults.object(forKey: activeWorkspaceKey) == nil,
+              defaults.object(forKey: legacyKey) == nil else {
+            throw WorkspaceOnboardingError.deletionPending(.selectorCleanupPending)
         }
     }
 

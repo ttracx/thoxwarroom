@@ -303,6 +303,7 @@ final class DNSBoundProviderTransportTests: XCTestCase {
         }
         XCTAssertEqual(trace.values, ["resolve", "factory"])
         XCTAssertTrue(connection.sent.values.isEmpty)
+        XCTAssertEqual(connection.cancelCount, 1)
     }
 
     func testResolutionBoundaryFailurePreventsConnectionAndCredentialInjection() async throws {
@@ -337,7 +338,7 @@ final class DNSBoundProviderTransportTests: XCTestCase {
                 credential: nil
             )
         }
-        await waitUntil { !connection.sent.values.isEmpty }
+        await connection.waitUntilSent()
 
         task.cancel()
         switch await task.result {
@@ -354,13 +355,38 @@ final class DNSBoundProviderTransportTests: XCTestCase {
         XCTAssertEqual(connection.cancelCount, 1)
     }
 
-    func testTimeoutCancelsHangingConnectionExactlyOnce() async throws {
-        let connection = ScriptedConnection(responses: [])
+    func testPlanningTimeoutReturnsBeforeCreatingConnection() async throws {
+        let factory = ScriptedFactory(connections: [])
         let transport = DNSBoundProviderTransport(
             policy: .secureDefault,
+            resolver: HangingResolver(),
+            connectionFactory: factory,
+            clock: ImmediateClock()
+        )
+
+        await assertTransportError(.terminal(.timedOut)) {
+            try await transport.send(
+                ProviderRequest(method: .get, relativePath: "/hang"),
+                to: self.privateEndpoint(),
+                credential: nil
+            )
+        }
+        XCTAssertEqual(factory.makeCount, 0)
+    }
+
+    func testRequestTimeoutCancelsHangingConnectionExactlyOnce() async throws {
+        let transportPolicy = try ProviderTransportPolicy(
+            maximumRequestBodyBytes: 32,
+            maximumResponseBodyBytes: 32,
+            requestTimeout: 0.02,
+            resourceTimeout: 0.05
+        )
+        let connection = ScriptedConnection(responses: [])
+        let transport = DNSBoundProviderTransport(
+            policy: try DNSBoundProviderTransportPolicy(transport: transportPolicy),
             resolver: ScriptedResolver(batches: [["10.0.0.7"]]),
             connectionFactory: ScriptedFactory(connections: [connection]),
-            clock: ImmediateClock()
+            clock: SystemDNSBoundTransportClock()
         )
 
         await assertTransportError(.terminal(.timedOut)) {
@@ -447,15 +473,6 @@ final class DNSBoundProviderTransportTests: XCTestCase {
         }
     }
 
-    private func waitUntil(
-        attempts: Int = 100,
-        condition: @escaping @Sendable () -> Bool
-    ) async {
-        for _ in 0..<attempts {
-            if condition() { return }
-            await Task.yield()
-        }
-    }
 }
 
 private func http(status: Int, body: Data) -> Data {
@@ -485,6 +502,13 @@ private actor ScriptedResolver: DNSBoundAddressResolving {
         trace?.append("resolve")
         guard !batches.isEmpty else { return [] }
         return batches.removeFirst()
+    }
+}
+
+private actor HangingResolver: DNSBoundAddressResolving {
+    func resolve(hostname: String) async throws -> [String] {
+        try await Task.sleep(nanoseconds: UInt64.max)
+        return []
     }
 }
 
@@ -533,6 +557,8 @@ private final class ScriptedConnection: DNSBoundTransportConnection, @unchecked 
     private let trace: Trace?
     private let storedSent = LockedValues<Data>()
     private var storedCancelCount = 0
+    private var didSend = false
+    private var sendWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(responses: [Response], trace: Trace? = nil) {
         self.responses = responses
@@ -558,7 +584,26 @@ private final class ScriptedConnection: DNSBoundTransportConnection, @unchecked 
     ) {
         storedSent.append(content)
         trace?.append("send")
+        let waiters = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            didSend = true
+            defer { sendWaiters.removeAll() }
+            return sendWaiters
+        }
+        waiters.forEach { $0.resume() }
         completion(nil)
+    }
+
+    func waitUntilSent() async {
+        await withCheckedContinuation { continuation in
+            let resumeImmediately = lock.withLock { () -> Bool in
+                guard !didSend else { return true }
+                sendWaiters.append(continuation)
+                return false
+            }
+            if resumeImmediately {
+                continuation.resume()
+            }
+        }
     }
 
     func receive(

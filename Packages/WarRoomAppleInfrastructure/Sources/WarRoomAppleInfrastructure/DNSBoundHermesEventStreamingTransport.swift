@@ -131,12 +131,7 @@ public struct DNSBoundHermesEventStreamingTransport: HermesEventStreamingTranspo
         )
         let bytes = try coordinator.takeStream()
 
-        let responseTimeout = Task {
-            try? await Task.sleep(for: .seconds(policy.requestTimeout))
-            guard !Task.isCancelled else { return }
-            coordinator.timeout()
-        }
-        cancellation.installResponseTimeout(responseTimeout)
+        cancellation.replaceActivityTimeout(makeActivityTimeout(coordinator: coordinator))
 
         let resourceTimeout = Task {
             try? await Task.sleep(for: .seconds(policy.resourceTimeout))
@@ -217,6 +212,9 @@ public struct DNSBoundHermesEventStreamingTransport: HermesEventStreamingTranspo
                     let received = try await connection.receive(
                         maximumLength: policy.maximumChunkBytes
                     )
+                    cancellation.replaceActivityTimeout(
+                        makeActivityTimeout(coordinator: coordinator)
+                    )
                     let events: [BoundedHTTP1ResponseEvent]
                     if received.isComplete {
                         var accumulated = try parser.receive(received.data)
@@ -246,7 +244,6 @@ public struct DNSBoundHermesEventStreamingTransport: HermesEventStreamingTranspo
                                     requiredOrigin: origin
                                 )
                             } else {
-                                cancellation.cancelResponseTimeout()
                                 _ = coordinator.publishResponse(head.statusCode)
                             }
                         case let .body(data):
@@ -279,6 +276,16 @@ public struct DNSBoundHermesEventStreamingTransport: HermesEventStreamingTranspo
             coordinator.cancel()
         } catch {
             coordinator.fail(Self.mapFailure(error))
+        }
+    }
+
+    private func makeActivityTimeout(
+        coordinator: NetworkTerminalStateCoordinator<Int, Data>
+    ) -> Task<Void, Never> {
+        Task {
+            try? await Task.sleep(for: .seconds(policy.requestTimeout))
+            guard !Task.isCancelled else { return }
+            coordinator.timeout()
         }
     }
 
@@ -422,7 +429,7 @@ private final class DNSBoundHermesCancellationController: @unchecked Sendable {
     private let lock = NSLock()
     private var current: (any DNSBoundHermesConnection)?
     private var operation: Task<Void, Never>?
-    private var responseTimeout: Task<Void, Never>?
+    private var activityTimeout: Task<Void, Never>?
     private var resourceTimeout: Task<Void, Never>?
     private var terminated = false
 
@@ -447,20 +454,19 @@ private final class DNSBoundHermesCancellationController: @unchecked Sendable {
         install(task, at: \Self.operation)
     }
 
-    func installResponseTimeout(_ task: Task<Void, Never>) {
-        install(task, at: \Self.responseTimeout)
+    func replaceActivityTimeout(_ task: Task<Void, Never>) {
+        let action = lock.withLock { () -> (Task<Void, Never>?, Bool) in
+            guard !terminated else { return (nil, true) }
+            let previous = activityTimeout
+            activityTimeout = task
+            return (previous, false)
+        }
+        action.0?.cancel()
+        if action.1 { task.cancel() }
     }
 
     func installResourceTimeout(_ task: Task<Void, Never>) {
         install(task, at: \Self.resourceTimeout)
-    }
-
-    func cancelResponseTimeout() {
-        let task = lock.withLock { () -> Task<Void, Never>? in
-            defer { responseTimeout = nil }
-            return responseTimeout
-        }
-        task?.cancel()
     }
 
     func terminate() {
@@ -472,10 +478,10 @@ private final class DNSBoundHermesCancellationController: @unchecked Sendable {
         )? in
             guard !terminated else { return nil }
             terminated = true
-            let result = (current, operation, responseTimeout, resourceTimeout)
+            let result = (current, operation, activityTimeout, resourceTimeout)
             current = nil
             operation = nil
-            responseTimeout = nil
+            activityTimeout = nil
             resourceTimeout = nil
             return result
         }

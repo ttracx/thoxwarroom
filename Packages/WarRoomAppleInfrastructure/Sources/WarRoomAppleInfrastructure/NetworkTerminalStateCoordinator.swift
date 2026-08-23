@@ -321,6 +321,10 @@ public final class NetworkTerminalStateCoordinator<Response: Sendable, Element: 
     private func complete(_ resources: TerminalResources?) {
         guard let resources else { return }
 
+        // Quiesce the underlying connection before resuming callers. Resuming a
+        // continuation first creates an observable race where the awaiting task
+        // can return while the connection is still active.
+        resources.cancelConnection?()
         switch resources.result {
         case .completed:
             resources.streamContinuation?.finish()
@@ -328,6 +332,5 @@ public final class NetworkTerminalStateCoordinator<Response: Sendable, Element: 
             resources.responseContinuation?.resume(throwing: error)
             resources.streamContinuation?.finish(throwing: error)
         }
-        resources.cancelConnection?()
     }
 }

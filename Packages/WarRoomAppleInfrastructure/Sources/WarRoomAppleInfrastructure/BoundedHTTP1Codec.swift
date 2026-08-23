@@ -240,13 +240,26 @@ public struct BoundedHTTP1ResponseParser: Sendable {
 
     public mutating func receive(_ bytes: Data) throws -> [BoundedHTTP1ResponseEvent] {
         guard !bytes.isEmpty else { return [] }
-        guard !isComplete else {
-            throw responseBodyForbidden
-                ? BoundedHTTP1Error.forbiddenResponseBody
-                : BoundedHTTP1Error.unexpectedDataAfterCompletion
+        var events: [BoundedHTTP1ResponseEvent] = []
+        var offset = 0
+        let ingressChunkBytes = max(limits.maximumLineBytes, limits.maximumDeliveryBytes)
+
+        // A caller can supply an arbitrarily large Data value even though the
+        // production adapters use bounded Network.framework receives. Feed that
+        // value through the parser in policy-bounded slices so `buffer` never
+        // transiently duplicates the entire untrusted input before limits run.
+        while offset < bytes.count {
+            guard !isComplete else {
+                throw responseBodyForbidden
+                    ? BoundedHTTP1Error.forbiddenResponseBody
+                    : BoundedHTTP1Error.unexpectedDataAfterCompletion
+            }
+            let count = min(ingressChunkBytes, bytes.count - offset)
+            buffer.append(bytes[offset..<(offset + count)])
+            events += try process(endOfStream: false)
+            offset += count
         }
-        buffer.append(bytes)
-        return try process(endOfStream: false)
+        return events
     }
 
     public mutating func finishEOF() throws -> [BoundedHTTP1ResponseEvent] {
@@ -504,8 +517,8 @@ public struct BoundedHTTP1ResponseParser: Sendable {
         if headers.contains(where: { $0.name.caseInsensitiveCompare("transfer-encoding") == .orderedSame }) {
             throw BoundedHTTP1Error.forbiddenResponseBody
         }
-        let lengths = try parsedContentLengths()
-        guard lengths.allSatisfy({ $0 == 0 }) else {
+        // RFC 9112 forbids Content-Length on every 1xx response, including zero.
+        guard try parsedContentLengths().isEmpty else {
             throw BoundedHTTP1Error.forbiddenResponseBody
         }
     }

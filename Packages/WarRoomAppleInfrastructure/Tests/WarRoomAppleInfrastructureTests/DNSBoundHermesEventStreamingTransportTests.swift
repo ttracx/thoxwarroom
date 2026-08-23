@@ -196,6 +196,10 @@ final class DNSBoundHermesEventStreamingTransportTests: XCTestCase {
             to: try privateEndpoint(),
             credential: nil
         )
+        // Hold the consumer until the scripted producer reaches its terminal
+        // transition; otherwise executor scheduling can drain the one-element
+        // buffer between yields and make this overflow test nondeterministic.
+        await connection.waitUntilCancelled()
         var iterator = response.bytes.makeAsyncIterator()
         let first = try await iterator.next()
         XCTAssertEqual(first, Data("A".utf8))
@@ -223,6 +227,37 @@ final class DNSBoundHermesEventStreamingTransportTests: XCTestCase {
         )
 
         await assertStreamOpenFailure(transport, equals: .timedOut)
+        XCTAssertEqual(connection.cancelCount, 1)
+    }
+
+    func testActivityTimeoutStillAppliesAfterResponseHead() async throws {
+        let policy = try HermesEventStreamingTransportPolicy(
+            maximumBufferedChunks: 2,
+            maximumChunkBytes: 128,
+            requestTimeout: 0.02,
+            resourceTimeout: 1
+        )
+        let connection = ScriptedHermesConnection([
+            receive("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n", complete: false),
+        ])
+        let transport = try DNSBoundHermesEventStreamingTransport(
+            policy: policy,
+            resolver: SequencedHermesResolver(["10.1.2.3"]),
+            connectionFactory: ScriptedHermesConnectionFactory([connection])
+        )
+
+        let response = try await transport.stream(
+            try ProviderRequest(method: .get, relativePath: "/events"),
+            to: try privateEndpoint(),
+            credential: nil
+        )
+        var iterator = response.bytes.makeAsyncIterator()
+        do {
+            _ = try await iterator.next()
+            XCTFail("Expected post-head activity timeout")
+        } catch {
+            XCTAssertEqual(error as? NetworkTerminalError, .timedOut)
+        }
         XCTAssertEqual(connection.cancelCount, 1)
     }
 
@@ -386,6 +421,7 @@ private final class ScriptedHermesConnection: DNSBoundHermesConnection, @uncheck
     private var storedRequests: [Data] = []
     private var storedCancelCount = 0
     private var cancelled = false
+    private var cancellationWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(_ receives: [DNSBoundHermesConnectionReceive]) {
         self.receives = receives
@@ -435,14 +471,34 @@ private final class ScriptedHermesConnection: DNSBoundHermesConnection, @uncheck
     }
 
     func cancel() {
-        let continuation = lock.withLock { () -> CheckedContinuation<DNSBoundHermesConnectionReceive, Error>? in
+        let resources = lock.withLock { () -> (
+            CheckedContinuation<DNSBoundHermesConnectionReceive, Error>?,
+            [CheckedContinuation<Void, Never>]
+        )? in
             guard !cancelled else { return nil }
             cancelled = true
             storedCancelCount += 1
-            defer { waiter = nil }
-            return waiter
+            defer {
+                waiter = nil
+                cancellationWaiters.removeAll()
+            }
+            return (waiter, cancellationWaiters)
         }
-        continuation?.resume(throwing: NetworkTerminalError.cancelled)
+        resources?.0?.resume(throwing: NetworkTerminalError.cancelled)
+        resources?.1.forEach { $0.resume() }
+    }
+
+    func waitUntilCancelled() async {
+        await withCheckedContinuation { continuation in
+            let resumeImmediately = lock.withLock { () -> Bool in
+                guard !cancelled else { return true }
+                cancellationWaiters.append(continuation)
+                return false
+            }
+            if resumeImmediately {
+                continuation.resume()
+            }
+        }
     }
 }
 

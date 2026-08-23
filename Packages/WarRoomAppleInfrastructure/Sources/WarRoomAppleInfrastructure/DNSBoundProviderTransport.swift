@@ -190,19 +190,26 @@ public struct DNSBoundProviderTransport: ProviderTransport, Sendable {
             guard now < deadline else {
                 throw DNSBoundProviderTransportError.terminal(.timedOut)
             }
+            let hopDeadline = min(
+                deadline,
+                adding(seconds: policy.transport.requestTimeout, to: now)
+            )
 
             // Planning (including a fresh DNS lookup and complete address-set
             // validation) and connection construction both happen before the
             // credential is read and injected into request bytes.
             let plan: DNSBoundConnectionPlan
             do {
-                plan = try await planner.plan(for: endpoint)
+                plan = try await planConnection(
+                    for: endpoint,
+                    timeoutNanoseconds: hopDeadline - now
+                )
             } catch let error as DNSBoundConnectionError {
                 throw DNSBoundProviderTransportError.planning(error)
             }
             try Task.checkCancellation()
             let postPlanningNow = clock.nowNanoseconds()
-            guard postPlanningNow < deadline else {
+            guard postPlanningNow < hopDeadline else {
                 throw DNSBoundProviderTransportError.terminal(.timedOut)
             }
             guard let address = plan.addresses.first else {
@@ -217,19 +224,25 @@ public struct DNSBoundProviderTransport: ProviderTransport, Sendable {
                 throw DNSBoundProviderTransportError.terminal(.connection(.unknown))
             }
 
-            let wireRequest = try makeWireRequest(
-                hop: hop,
-                plan: plan,
-                credential: credential
-            )
-            let remainingResourceNanoseconds = deadline - postPlanningNow
-            let requestNanoseconds = nanoseconds(policy.transport.requestTimeout)
-            let timeout = min(remainingResourceNanoseconds, requestNanoseconds)
+            let wireRequest: Data
+            do {
+                wireRequest = try makeWireRequest(
+                    hop: hop,
+                    plan: plan,
+                    credential: credential
+                )
+            } catch {
+                // Connection construction intentionally precedes credential
+                // access. If serialization rejects the credential or request,
+                // release that not-yet-started connection before propagating.
+                connection.cancel()
+                throw error
+            }
             let result = try await performHop(
                 connection: connection,
                 wireRequest: wireRequest,
                 requestMethod: hop.method,
-                timeoutNanoseconds: timeout
+                timeoutNanoseconds: hopDeadline - postPlanningNow
             )
 
             guard Self.isRedirect(result.head.statusCode) else {
@@ -244,6 +257,31 @@ public struct DNSBoundProviderTransport: ProviderTransport, Sendable {
             try validateHop(redirectURL, origin: origin)
             redirectCount += 1
             hop = redirectedRequest(from: hop, statusCode: result.head.statusCode, url: redirectURL)
+        }
+    }
+
+    private func planConnection(
+        for endpoint: ValidatedEndpoint,
+        timeoutNanoseconds: UInt64
+    ) async throws -> DNSBoundConnectionPlan {
+        try await withThrowingTaskGroup(of: DNSBoundPlanningOutcome.self) { group in
+            group.addTask { [planner] in
+                .plan(try await planner.plan(for: endpoint))
+            }
+            group.addTask { [clock] in
+                try await clock.sleep(nanoseconds: timeoutNanoseconds)
+                return .timedOut
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else {
+                throw DNSBoundProviderTransportError.terminal(.connection(.unknown))
+            }
+            switch first {
+            case let .plan(plan):
+                return plan
+            case .timedOut:
+                throw DNSBoundProviderTransportError.terminal(.timedOut)
+            }
         }
     }
 
@@ -482,6 +520,11 @@ public struct DNSBoundProviderTransport: ProviderTransport, Sendable {
             return .unsupportedFraming
         }
     }
+}
+
+private enum DNSBoundPlanningOutcome: Sendable {
+    case plan(DNSBoundConnectionPlan)
+    case timedOut
 }
 
 private struct DNSBoundOrigin: Equatable, Sendable {

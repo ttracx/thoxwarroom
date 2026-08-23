@@ -133,6 +133,11 @@ public struct DNSBoundIPAddress: Equatable, Hashable, Sendable {
         let isDocumentation = (bytes[0...3] == [0x20, 0x01, 0x0D, 0xB8])
             || (bytes[0] == 0x3F && bytes[1] == 0xFF && bytes[2] & 0xF0 == 0)
         let isBenchmarking = bytes[0...5] == [0x20, 0x01, 0x00, 0x02, 0, 0]
+        // Transition mechanisms can tunnel traffic to an embedded IPv4 peer,
+        // which would bypass the scope proved by inspecting only the IPv6
+        // prefix. Fail closed for Teredo (2001::/32) and 6to4 (2002::/16).
+        let isTeredo = bytes[0...3] == [0x20, 0x01, 0x00, 0x00]
+        let isSixToFour = bytes[0] == 0x20 && bytes[1] == 0x02
         let isOrchid = bytes[0] == 0x20
             && bytes[1] == 0x01
             && ((bytes[2] == 0x00 && bytes[3] & 0xF0 == 0x10)
@@ -142,6 +147,8 @@ public struct DNSBoundIPAddress: Equatable, Hashable, Sendable {
               !isMulticast,
               !isDocumentation,
               !isBenchmarking,
+              !isTeredo,
+              !isSixToFour,
               !isOrchid,
               isGloballyRoutablePrefix else {
             throw DNSBoundConnectionError.disallowedAddress
@@ -167,12 +174,21 @@ public struct SystemDNSBoundAddressResolver: DNSBoundAddressResolving, Sendable 
             throw DNSBoundConnectionError.invalidHostname
         }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(with: Result {
-                    try Self.resolveSynchronously(hostname: hostname)
-                })
+        let completion = DNSBoundResolverCompletion()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard completion.install(continuation) else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                DispatchQueue.global(qos: .userInitiated).async {
+                    completion.resolve(Result {
+                        try Self.resolveSynchronously(hostname: hostname)
+                    })
+                }
             }
+        } onCancel: {
+            completion.cancel()
         }
     }
 
@@ -217,6 +233,43 @@ public struct SystemDNSBoundAddressResolver: DNSBoundAddressResolving, Sendable 
             throw DNSBoundConnectionError.noResolvedAddresses
         }
         return addresses
+    }
+}
+
+/// Makes the blocking system resolver cancellation-aware from the async
+/// caller's perspective. `getaddrinfo` may finish later on its worker thread,
+/// but this gate resumes the checked continuation exactly once.
+private final class DNSBoundResolverCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<[String], Error>?
+    private var cancelled = false
+
+    func install(_ continuation: CheckedContinuation<[String], Error>) -> Bool {
+        lock.withLock {
+            guard !cancelled else { return false }
+            self.continuation = continuation
+            return true
+        }
+    }
+
+    func resolve(_ result: Result<[String], Error>) {
+        let continuation = lock.withLock { () -> CheckedContinuation<[String], Error>? in
+            guard !cancelled else { return nil }
+            cancelled = true
+            defer { self.continuation = nil }
+            return self.continuation
+        }
+        continuation?.resume(with: result)
+    }
+
+    func cancel() {
+        let continuation = lock.withLock { () -> CheckedContinuation<[String], Error>? in
+            guard !cancelled else { return nil }
+            cancelled = true
+            defer { self.continuation = nil }
+            return self.continuation
+        }
+        continuation?.resume(throwing: CancellationError())
     }
 }
 

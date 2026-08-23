@@ -39,10 +39,32 @@ final class DNSBoundConnectionTests: XCTestCase {
         let literals = [
             "::", "::ffff:192.0.2.1", "fe80::1%en0", "ff02::1", "2001:db8::1",
             "3fff::1", "2001:2::1", "2001:10::1", "2001:20::1", "100::1",
+            "2001:0000:4136:e378:8000:63bf:3fff:fdd2", "2002:0a00:0001::1",
             "not-an-address",
         ]
         for literal in literals {
             XCTAssertThrowsError(try DNSBoundIPAddress(parsing: literal), literal)
+        }
+    }
+
+    func testHostedPlannerRejectsIPv6TransitionAddresses() async throws {
+        let endpoint = try EndpointValidator.validate(
+            "https://provider.example.com",
+            declaredBoundary: .hosted,
+            hostedAccess: .granted
+        )
+        for literal in [
+            "2001:0000:4136:e378:8000:63bf:3fff:fdd2",
+            "2002:0a00:0001::1",
+        ] {
+            do {
+                _ = try await DNSBoundConnectionPlanner(
+                    resolver: StubResolver(addresses: [literal])
+                ).plan(for: endpoint)
+                XCTFail("Expected transition-address rejection: \(literal)")
+            } catch {
+                XCTAssertEqual(error as? DNSBoundConnectionError, .disallowedAddress, literal)
+            }
         }
     }
 

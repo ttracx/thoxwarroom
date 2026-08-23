@@ -76,6 +76,41 @@ final class BoundedHTTP1CodecTests: XCTestCase {
         ])
     }
 
+    func testRejectsFramingOnInformationalResponse() throws {
+        try assertParseError(
+            "HTTP/1.1 100 Continue\r\nContent-Length: 0\r\n\r\n",
+            .forbiddenResponseBody
+        )
+        try assertParseError(
+            "HTTP/1.1 103 Early Hints\r\nTransfer-Encoding: chunked\r\n\r\n",
+            .forbiddenResponseBody
+        )
+    }
+
+    func testLargeCallerChunkIsProcessedIncrementally() throws {
+        let limits = try BoundedHTTP1Limits(
+            maximumHeaderBytes: 64,
+            maximumHeaderCount: 4,
+            maximumLineBytes: 32,
+            maximumBodyBytes: 128 * 1_024,
+            maximumDeliveryBytes: 1_024
+        )
+        var parser = try BoundedHTTP1ResponseParser(requestMethod: "GET", limits: limits)
+        let body = Data(repeating: 0x61, count: limits.maximumBodyBytes)
+        var wire = Data("HTTP/1.1 200 OK\r\nContent-Length: \(body.count)\r\n\r\n".utf8)
+        wire.append(body)
+
+        let events = try parser.receive(wire)
+        let delivered = events.reduce(into: 0) { count, event in
+            if case let .body(chunk) = event {
+                XCTAssertLessThanOrEqual(chunk.count, limits.maximumDeliveryBytes)
+                count += chunk.count
+            }
+        }
+        XCTAssertEqual(delivered, body.count)
+        XCTAssertEqual(events.last, .complete)
+    }
+
     func testChunkedResponseIsIncrementalAndRejectsTrailers() throws {
         let limits = try BoundedHTTP1Limits(maximumBodyBytes: 20, maximumDeliveryBytes: 2)
         var parser = try BoundedHTTP1ResponseParser(requestMethod: "GET", limits: limits)

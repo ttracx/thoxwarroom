@@ -2,9 +2,9 @@
 
 > Local-first native SwiftUI foundation for private THOX workspaces. One codebase, two targets: macOS 14+ (universal) and iOS 17+ (iPhone). Built for THOX AI LLC.
 
-ThoxWarRoom now starts with native workspace onboarding. Users explicitly choose a local-device, private-network, or hosted boundary before any provider can be opened; hosted transfer requires separate consent. Endpoint/profile metadata is stored locally without credentials. The former Open WebUI shell remains compiled for migration compatibility but is not exposed while the hosted retention and App Store privacy contract are unverified.
+ThoxWarRoom now starts with native workspace onboarding. Users explicitly choose a local-device, private-network, or hosted boundary before any provider can be opened; hosted transfer requires separate consent. Endpoint/profile metadata is AES-256-GCM encrypted locally with workspace-scoped device-only Keychain keys; credentials remain separate in Keychain. The former Open WebUI shell remains compiled for migration compatibility but is not exposed while the hosted retention and App Store privacy contract are unverified.
 
-> **Current scope:** v4.2 has the clean-room shared core, native provider selection, Open WebUI discovery/credential/model-catalog UI, a credential-gated read-only Hermes run review, and a credential-gated read-only MeshStack War Room dashboard. Native chat, live Hermes streaming/actions, encrypted history, durable audit storage, live private-service verification, and completed distribution remain unfinished. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [current service contracts](docs/current_service_contracts.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md).
+> **Current scope:** v4.2 has the clean-room shared core, encrypted workspace-profile persistence, native provider selection, Open WebUI discovery/credential/model-catalog UI, a credential-gated read-only Hermes run review, and a credential-gated read-only MeshStack War Room dashboard. Native chat, live Hermes streaming/actions, encrypted chat/document history, durable audit storage, live private-service verification, and completed distribution remain unfinished. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [current service contracts](docs/current_service_contracts.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md).
 
 Current build, signing, upload, and blocker evidence is recorded in [release_evidence.md](release_evidence.md).
 
@@ -27,13 +27,15 @@ thoxwarroom/
 ├── App/
 │   ├── ThoxWarRoomApp.swift    # @main App, scene wiring, dark appearance
 │   ├── ContentView.swift       # Root routing: onboarding or authorized compatibility surface
-│   ├── WorkspaceOnboarding*.swift # Boundary selection, metadata store, and native states
+│   ├── WorkspaceOnboarding*.swift # Boundary selection, encrypted metadata lifecycle, and states
+│   ├── EncryptedWorkspaceProfileRepository.swift # AES-GCM/Keychain profile composition
 │   ├── HostedCompatibilityView.swift # Explicit exact-host WebView entry
 │   ├── WebViewRepresentable.swift  # macOS NSViewRepresentable + iOS UIViewRepresentable
 │   ├── ThoxWebViewModel.swift  # ObservableObject: load state, navigation policy
 │   ├── ThoxTheme.swift         # THOX emerald accent + dark surfaces
 │   ├── LoadingOverlay.swift    # Branded spinner + offline/Retry
-│   └── ThoxWarRoom.entitlements # App sandbox + network client
+│   ├── ThoxWarRoom.entitlements # macOS app sandbox + network client
+│   └── ThoxWarRoom-iOS.entitlements # Complete default iOS file protection
 ├── Assets.xcassets/            # Xcode asset catalog (icons + accent color)
 │   ├── AppIcon.appiconset/     # iOS universal icons
 │   └── AppIcon-mac.appiconset/ # macOS icons
@@ -46,7 +48,7 @@ thoxwarroom/
 │   └── WorkspaceOnboardingTests.swift # Boundary, consent, persistence, and gate tests
 ├── Packages/
 │   ├── WarRoomCore/            # Endpoint, workspace, audit, credential/transport seams
-│   ├── WarRoomAppleInfrastructure/ # Keychain + scoped URLSession transport
+│   ├── WarRoomAppleInfrastructure/ # Keychain, AES-GCM file store, scoped URLSession
 │   ├── WarRoomOpenWebUI/       # Bounded discovery + provisional model catalog
 │   ├── WarRoomHermes/          # Run/status/SSE/approval/stop contracts
 │   └── WarRoomMesh/            # Read-only devices/topology/events contracts
@@ -96,7 +98,8 @@ The app opens native workspace onboarding. The legacy `https://webui.thox.ai` co
 
 - **Explicit workspace boundary** — local device is the default; private network and hosted service are separately labeled. No provider is contacted while saving metadata.
 - **Hosted consent and disabled compatibility boundary** — hosted configuration requires affirmative data-transfer consent. The legacy WebView additionally remains feature-disabled until THOX verifies server retention, embedded domains, and matching App Store privacy declarations.
-- **Workspace-scoped credentials** — onboarding stores only the validated `WorkspaceProfile` in local preferences. Open WebUI and Hermes credentials are rejected in URLs, entered through privacy-sensitive native fields, and stored as non-synchronizing `WhenUnlockedThisDeviceOnly` Keychain items. Workspace removal deletes the scoped Keychain item before removing profile metadata and preserves metadata if secure deletion fails.
+- **Encrypted workspace profiles** — profile payloads are sealed with AES-256-GCM using HKDF-derived purpose keys and workspace-scoped, non-synchronizing `WhenUnlockedThisDeviceOnly` Keychain master keys. Ciphertext writes are atomic, bounded, private, excluded from backup, and use complete iOS file protection. `UserDefaults` retains only the active workspace UUID and legacy migration evidence until encrypted read-back succeeds.
+- **Workspace-scoped credentials and deletion** — Open WebUI and Hermes credentials are rejected in URLs, entered through privacy-sensitive native fields, and stored separately in Keychain. Workspace removal must delete the provider credential before cryptographic profile erasure; credential failure preserves the workspace for retry.
 - **Native provider surfaces** — Open WebUI exposes bounded public discovery and a protected model catalog; Hermes exposes credential-gated read-only run status and buffered events. Neither surface claims native chat, live streaming, or audited approval controls.
 - **Read-only War Room** — MeshStack workspaces require a canonical operator-supplied mesh UUID and Keychain credential before loading bounded devices, topology, and events. The dashboard shows provenance, freshness, empty/offline/error states, and partial results; it exposes no pairing, deletion, token creation, or control-plane write.
 - **Persistent session with explicit purge** — `WKWebViewConfiguration.websiteDataStore = .default()` keeps login data across relaunch. **Sign Out** requires confirmation, clears all WebKit website data in the app container, reports clearing/success/failure state, and reloads the canonical URL after success. This clears local session material; server-side token revocation is not yet verified.

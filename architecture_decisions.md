@@ -75,7 +75,7 @@
 ## ADR-007: Treat Apple privacy declarations as a tested source contract
 
 - **Decision:** Bundle one reviewed `PrivacyInfo.xcprivacy` in both Apple app targets and fail local/release builds when its declarations or platform placement drift.
-- **Context:** The current executable stores app-only workspace metadata in `UserDefaults`, stores secrets in the device-only Keychain, has no telemetry or tracking SDK, and sends requests only to operator-configured provider infrastructure.
+- **Context:** The current executable stores only an active workspace selector in `UserDefaults`, stores encrypted workspace profiles in the app container, stores keys/secrets in the device-only Keychain, has no telemetry or tracking SDK, and sends requests only to operator-configured provider infrastructure.
 - **Options considered:** omit the app manifest until App Store validation; maintain untested per-platform manifests; share and validate one source manifest.
 - **Tradeoffs:** exact validation intentionally fails whenever declarations change, so new storage, SDKs, telemetry, or developer-operated collection requires an explicit review instead of silently extending the existing claim.
 - **Security impact:** tracking is false, tracking domains and developer/SDK collection are empty, and the only current required-reason declaration is app-only UserDefaults reason `CA92.1`. This is a source assertion, not proof of provider behavior.
@@ -83,3 +83,15 @@
 - **Compliance impact:** reproducible manifest evidence improves reviewability but does not replace privacy policy, App Store Connect answers, legal review, or live data-flow verification.
 - **Final choice:** one source manifest plus deterministic validation at source, built-app, archive, IPA, and mounted-DMG boundaries; keep the legacy developer-hosted WebView route disabled while its collection/retention contract is unverified.
 - **Follow-up:** re-audit before adding any dependency or data flow; add the public privacy/support metadata and an in-app privacy-policy surface before App Store review.
+
+## ADR-008: Encrypt workspace profiles with explicit device-only key lifecycle
+
+- **Decision:** Seal each workspace profile with AES-256-GCM, derive purpose keys with HKDF-SHA256 from a workspace master key, and persist only ciphertext in the app container.
+- **Context:** Plaintext profile preferences exposed workspace names, endpoints, boundaries, and provider identity. A missing Keychain key must not be silently regenerated over existing ciphertext.
+- **Options considered:** plaintext preferences; platform file protection alone; SQLite immediately; application-layer authenticated encryption over atomic files as the bounded first slice.
+- **Tradeoffs:** atomic files avoid a new dependency and deliver encrypted onboarding now, but do not yet provide revision transactions, HMAC-obscured indexes, audit chaining, or rollback detection.
+- **Security impact:** master keys are non-synchronizing `WhenUnlockedThisDeviceOnly`; AAD binds all public envelope metadata; reads are bounded; symlinks, tampering, wrong keys, and cross-workspace substitution fail closed. iOS also uses complete default file protection.
+- **Local-first impact:** profile data and keys remain inside the Apple app/container and Keychain; no cloud or telemetry dependency is introduced.
+- **Compliance impact:** encryption, migration, deletion ordering, and negative tests create reviewable controls without claiming certification or physical-device verification.
+- **Final choice:** `WarRoomAppleInfrastructure` owns the ciphertext/key primitives; the app owns provider-aware profile encoding and revalidates provider capabilities and endpoint policy from current trusted code after decryption.
+- **Follow-up:** add a transactional encrypted audit ledger with keyed chain and Keychain rollback anchor, obscure workspace routing indexes, implement retention/export and resumable deletion, and verify locked-device behavior on physical hardware.

@@ -15,7 +15,7 @@ struct ContentView: View {
 
     @MainActor
     init() {
-        let service = UserDefaultsWorkspaceOnboardingService()
+        let service = EncryptedWorkspaceOnboardingService()
         _onboardingModel = StateObject(wrappedValue: WorkspaceOnboardingModel(service: service))
     }
 

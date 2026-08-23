@@ -6,7 +6,7 @@ Evidence is recorded per platform and must not be generalized across lanes.
 
 - Source release commit: `1056d60` on `main`.
 - `App/PrivacyInfo.xcprivacy` is a valid property list bundled into both generated app targets.
-- Current declarations: tracking disabled, no tracking domains, no developer/SDK data collection, and `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1` for app-only workspace profile preferences.
+- Current declarations: tracking disabled, no tracking domains, no developer/SDK data collection, and `NSPrivacyAccessedAPICategoryUserDefaults` reason `CA92.1` for the app-only active-workspace selector and legacy migration.
 - Source audit found direct required-reason API usage only through `UserDefaults`; credentials remain in non-synchronizing device-only Keychain storage and are not declared as collected by THOX.
 - Independent review found that the legacy persistent `webui.thox.ai` WebView could not support the empty collection declaration without verified server-retention and embedded-domain evidence. Its user-facing route is now feature-disabled; native operator-configured provider surfaces remain available.
 - Secret-free CI validates the source manifest and its Apple-required placement at the iOS app-bundle root and macOS `Contents/Resources` path.

@@ -21,30 +21,109 @@ enum WorkspaceOnboardingError: LocalizedError {
     }
 }
 
-/// Stores endpoint/profile metadata only. Credentials are deliberately excluded
-/// and will flow through WarRoomCore.CredentialVault once authentication lands.
+private struct StoredWorkspaceProfileV1: Codable, Equatable, Sendable {
+    struct HostedGrant: Codable, Equatable, Sendable {
+        let policyVersion: UInt16
+        let grantedAtMilliseconds: Int64
+    }
+
+    let schemaVersion: UInt16
+    let id: WorkspaceID
+    let displayName: String
+    let canonicalEndpoint: String
+    let boundary: NetworkBoundary
+    let providerID: ProviderID
+    let hostedGrant: HostedGrant?
+    let createdAtMilliseconds: Int64
+    let updatedAtMilliseconds: Int64
+
+    init(profile: WorkspaceProfile, hostedGrant: HostedGrant?) throws {
+        schemaVersion = 1
+        id = profile.id
+        displayName = profile.displayName
+        canonicalEndpoint = profile.endpoint.url.absoluteString
+        boundary = profile.endpoint.boundary
+        providerID = profile.provider.id
+        self.hostedGrant = hostedGrant
+        createdAtMilliseconds = try Self.milliseconds(profile.createdAt)
+        updatedAtMilliseconds = try Self.milliseconds(profile.updatedAt)
+    }
+
+    private static func milliseconds(_ date: Date) throws -> Int64 {
+        let value = date.timeIntervalSince1970 * 1_000
+        guard value.isFinite,
+              value > Double(Int64.min),
+              value < Double(Int64.max) else {
+            throw WorkspaceOnboardingError.persistence
+        }
+        return Int64(value.rounded(.towardZero))
+    }
+}
+
+/// Persists only encrypted workspace metadata. Credentials remain in Keychain,
+/// and provider capabilities are reconstructed from current trusted app code.
 @MainActor
-final class UserDefaultsWorkspaceOnboardingService: WorkspaceOnboardingServicing {
+final class EncryptedWorkspaceOnboardingService: WorkspaceOnboardingServicing {
     private let defaults: UserDefaults
-    private let key: String
+    private let legacyKey: String
+    private let activeWorkspaceKey: String
     private let credentialVault: any CredentialVault
+    private let persistence: any EncryptedWorkspaceProfilePersisting
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private let legacyDecoder = JSONDecoder()
 
     init(
         defaults: UserDefaults = .standard,
         key: String = "workspace.profile.v1",
-        credentialVault: any CredentialVault = KeychainCredentialVault()
+        activeWorkspaceKey: String = "workspace.active.v2",
+        credentialVault: any CredentialVault = KeychainCredentialVault(),
+        persistence: (any EncryptedWorkspaceProfilePersisting)? = nil
     ) {
         self.defaults = defaults
-        self.key = key
+        legacyKey = key
+        self.activeWorkspaceKey = activeWorkspaceKey
         self.credentialVault = credentialVault
+        if let persistence {
+            self.persistence = persistence
+        } else {
+            self.persistence = (try? AppleEncryptedWorkspaceProfileRepository.makeDefault())
+                ?? UnavailableEncryptedWorkspaceProfilePersistence()
+        }
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        decoder.dateDecodingStrategy = .millisecondsSince1970
     }
 
     func loadConfiguration() async throws -> WorkspaceProfile? {
-        guard let data = defaults.data(forKey: key) else { return nil }
-        do { return try decoder.decode(WorkspaceProfile.self, from: data) }
-        catch { throw WorkspaceOnboardingError.persistence }
+        do {
+            let repository = persistence
+            if let activeID = try activeWorkspaceID() {
+                guard let payload = try await repository.loadProfilePayload(for: activeID) else {
+                    throw WorkspaceOnboardingError.persistence
+                }
+                return try decodeAndValidate(payload, expectedID: activeID)
+            }
+
+            let encryptedIDs = try await repository.workspaceIDs()
+            guard encryptedIDs.count <= 1 else { throw WorkspaceOnboardingError.persistence }
+            if let encryptedID = encryptedIDs.first {
+                guard let payload = try await repository.loadProfilePayload(for: encryptedID) else {
+                    throw WorkspaceOnboardingError.persistence
+                }
+                let profile = try decodeAndValidate(payload, expectedID: encryptedID)
+                try persistActiveWorkspaceID(encryptedID)
+                return profile
+            }
+
+            return try await migrateLegacyProfileIfPresent(using: repository)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as WorkspaceOnboardingError {
+            throw error
+        } catch {
+            throw WorkspaceOnboardingError.persistence
+        }
     }
 
     func saveConfiguration(from draft: WorkspaceDraft) async throws -> WorkspaceProfile {
@@ -55,13 +134,33 @@ final class UserDefaultsWorkspaceOnboardingService: WorkspaceOnboardingServicing
                 hostedAccess: draft.hasHostedDataTransferConsent ? .granted : .denied,
                 policy: draft.providerKind.endpointPolicy
             )
+            let now = try canonicalDate(Date())
             let profile = try WorkspaceProfile(
                 displayName: draft.name,
                 endpoint: endpoint,
-                provider: draft.providerKind.descriptor
+                provider: draft.providerKind.descriptor,
+                createdAt: now,
+                updatedAt: now
             )
-            defaults.set(try encoder.encode(profile), forKey: key)
-            guard defaults.data(forKey: key) != nil else { throw WorkspaceOnboardingError.persistence }
+            let grant = endpoint.boundary == .hosted
+                ? StoredWorkspaceProfileV1.HostedGrant(
+                    policyVersion: 1,
+                    grantedAtMilliseconds: try milliseconds(now)
+                )
+                : nil
+            let stored = try StoredWorkspaceProfileV1(profile: profile, hostedGrant: grant)
+            let repository = persistence
+            try await repository.saveProfilePayload(
+                try encoder.encode(stored),
+                for: profile.id,
+                createdAt: profile.createdAt,
+                updatedAt: profile.updatedAt
+            )
+            guard let readBack = try await repository.loadProfilePayload(for: profile.id),
+                  try decodeAndValidate(readBack, expectedID: profile.id) == profile else {
+                throw WorkspaceOnboardingError.persistence
+            }
+            try persistActiveWorkspaceID(profile.id)
             return profile
         } catch let error as EndpointValidationError {
             throw WorkspaceOnboardingError.validation(message(for: error))
@@ -75,20 +174,142 @@ final class UserDefaultsWorkspaceOnboardingService: WorkspaceOnboardingServicing
     }
 
     func deleteConfiguration() async throws {
-        if let data = defaults.data(forKey: key) {
-            let profile: WorkspaceProfile
-            do {
-                profile = try decoder.decode(WorkspaceProfile.self, from: data)
-                try await credentialVault.deleteCredential(for: profile.id)
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                // Preserve the profile when its workspace-scoped secret cannot be
-                // removed so the user can retry without orphaning Keychain data.
+        do {
+            let selectedID = try activeWorkspaceID()
+            let workspaceID: WorkspaceID
+            if let selectedID {
+                // Deletion remains retryable after cryptographic erasure even when
+                // ciphertext cleanup failed during an earlier attempt.
+                workspaceID = selectedID
+            } else {
+                guard let profile = try await loadConfiguration() else { return }
+                workspaceID = profile.id
+            }
+            // Secret deletion must succeed before encrypted profile/key deletion.
+            // On failure, all workspace evidence is preserved for a safe retry.
+            try await credentialVault.deleteCredential(for: workspaceID)
+            try await persistence.deleteWorkspace(workspaceID)
+            defaults.removeObject(forKey: activeWorkspaceKey)
+            defaults.removeObject(forKey: legacyKey)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw WorkspaceOnboardingError.persistence
+        }
+    }
+
+    private func migrateLegacyProfileIfPresent(
+        using repository: any EncryptedWorkspaceProfilePersisting
+    ) async throws -> WorkspaceProfile? {
+        guard let legacyData = defaults.data(forKey: legacyKey) else { return nil }
+        let legacy = try legacyDecoder.decode(WorkspaceProfile.self, from: legacyData)
+        guard let providerKind = WorkspaceProviderKind(providerID: legacy.provider.id) else {
+            throw WorkspaceOnboardingError.persistence
+        }
+        let endpoint = try EndpointValidator.validate(
+            legacy.endpoint.url.absoluteString,
+            declaredBoundary: legacy.endpoint.boundary,
+            hostedAccess: legacy.endpoint.boundary == .hosted ? .granted : .denied,
+            policy: providerKind.endpointPolicy
+        )
+        let createdAt = try canonicalDate(legacy.createdAt)
+        let updatedAt = try canonicalDate(legacy.updatedAt)
+        let profile = try WorkspaceProfile(
+            id: legacy.id,
+            displayName: legacy.displayName,
+            endpoint: endpoint,
+            provider: providerKind.descriptor,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+        let grant = endpoint.boundary == .hosted
+            ? StoredWorkspaceProfileV1.HostedGrant(
+                policyVersion: 1,
+                grantedAtMilliseconds: try milliseconds(updatedAt)
+            )
+            : nil
+        let stored = try StoredWorkspaceProfileV1(profile: profile, hostedGrant: grant)
+        try await repository.saveProfilePayload(
+            try encoder.encode(stored),
+            for: profile.id,
+            createdAt: profile.createdAt,
+            updatedAt: profile.updatedAt
+        )
+        guard let readBack = try await repository.loadProfilePayload(for: profile.id),
+              try decodeAndValidate(readBack, expectedID: profile.id) == profile else {
+            throw WorkspaceOnboardingError.persistence
+        }
+        try persistActiveWorkspaceID(profile.id)
+        // Legacy plaintext is removed only after encrypted read-back and selector persistence.
+        defaults.removeObject(forKey: legacyKey)
+        return profile
+    }
+
+    private func decodeAndValidate(_ payload: Data, expectedID: WorkspaceID) throws -> WorkspaceProfile {
+        let stored = try decoder.decode(StoredWorkspaceProfileV1.self, from: payload)
+        guard stored.schemaVersion == 1,
+              stored.id == expectedID,
+              let providerKind = WorkspaceProviderKind(providerID: stored.providerID) else {
+            throw WorkspaceOnboardingError.persistence
+        }
+        if stored.boundary == .hosted {
+            guard let hostedGrant = stored.hostedGrant,
+                  hostedGrant.policyVersion == 1,
+                  hostedGrant.grantedAtMilliseconds >= stored.createdAtMilliseconds,
+                  hostedGrant.grantedAtMilliseconds <= stored.updatedAtMilliseconds else {
                 throw WorkspaceOnboardingError.persistence
             }
+        } else if stored.hostedGrant != nil {
+            throw WorkspaceOnboardingError.persistence
         }
-        defaults.removeObject(forKey: key)
+        let endpoint = try EndpointValidator.validate(
+            stored.canonicalEndpoint,
+            declaredBoundary: stored.boundary,
+            hostedAccess: stored.hostedGrant == nil ? .denied : .granted,
+            policy: providerKind.endpointPolicy
+        )
+        return try WorkspaceProfile(
+            id: stored.id,
+            displayName: stored.displayName,
+            endpoint: endpoint,
+            provider: providerKind.descriptor,
+            createdAt: Date(
+                timeIntervalSince1970: Double(stored.createdAtMilliseconds) / 1_000
+            ),
+            updatedAt: Date(
+                timeIntervalSince1970: Double(stored.updatedAtMilliseconds) / 1_000
+            )
+        )
+    }
+
+    private func canonicalDate(_ date: Date) throws -> Date {
+        Date(timeIntervalSince1970: Double(try milliseconds(date)) / 1_000)
+    }
+
+    private func milliseconds(_ date: Date) throws -> Int64 {
+        let value = date.timeIntervalSince1970 * 1_000
+        guard value.isFinite,
+              value > Double(Int64.min),
+              value < Double(Int64.max) else {
+            throw WorkspaceOnboardingError.persistence
+        }
+        return Int64(value.rounded(.towardZero))
+    }
+
+    private func activeWorkspaceID() throws -> WorkspaceID? {
+        guard let value = defaults.string(forKey: activeWorkspaceKey) else { return nil }
+        guard value == value.lowercased(), let uuid = UUID(uuidString: value) else {
+            throw WorkspaceOnboardingError.persistence
+        }
+        return WorkspaceID(rawValue: uuid)
+    }
+
+    private func persistActiveWorkspaceID(_ workspaceID: WorkspaceID) throws {
+        let value = workspaceID.rawValue.uuidString.lowercased()
+        defaults.set(value, forKey: activeWorkspaceKey)
+        guard defaults.string(forKey: activeWorkspaceKey) == value else {
+            throw WorkspaceOnboardingError.persistence
+        }
     }
 
     private func message(for error: WorkspaceProfileError) -> String {

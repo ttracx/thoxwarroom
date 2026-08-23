@@ -5,6 +5,7 @@ struct WorkspaceOnboardingView: View {
     @ObservedObject var model: WorkspaceOnboardingModel
     let onOpenNativeFeature: (WorkspaceProfile) -> Void
     let onOpenHostedCompatibility: (WorkspaceProfile) -> Void
+    let onOpenWorkspaceBrowser: (WorkspaceProfile) -> Void
     @FocusState private var focusedField: Field?
 
     private enum Field { case name, endpoint }
@@ -60,6 +61,9 @@ struct WorkspaceOnboardingView: View {
                 onOpenNativeFeature: { onOpenNativeFeature(configuration) },
                 onOpenHostedCompatibility: {
                     onOpenHostedCompatibility(configuration)
+                },
+                onOpenWorkspaceBrowser: {
+                    onOpenWorkspaceBrowser(configuration)
                 },
                 onRemove: { Task { await model.reset() } }
             )
@@ -236,6 +240,7 @@ private struct WorkspaceReadyView: View {
     let configuration: WorkspaceProfile
     let onOpenNativeFeature: () -> Void
     let onOpenHostedCompatibility: () -> Void
+    let onOpenWorkspaceBrowser: () -> Void
     let onRemove: () -> Void
     @State private var isRemovalPresented = false
 
@@ -270,6 +275,13 @@ private struct WorkspaceReadyView: View {
                     .buttonStyle(.borderedProminent)
                     .accessibilityHint("Opens webui.thox.ai after your explicit hosted workspace authorization")
                     .accessibilityIdentifier("open-hosted-compatibility")
+                }
+                if configuration.supportsLocalWorkspaceBrowser {
+                    Button("Browse local files") {
+                        onOpenWorkspaceBrowser()
+                    }
+                    .accessibilityHint("Choose a local folder for a confined read-only text browser")
+                    .accessibilityIdentifier("open-workspace-browser")
                 }
                 Spacer()
                 Button("Remove workspace", role: .destructive) { isRemovalPresented = true }

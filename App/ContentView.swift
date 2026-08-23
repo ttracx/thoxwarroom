@@ -7,6 +7,7 @@ struct ContentView: View {
         case providerConnection(WorkspaceProfile)
         case hermesReview(WorkspaceProfile)
         case warRoomDashboard(WorkspaceProfile)
+        case workspaceBrowser(WorkspaceProfile)
     }
 
     @EnvironmentObject private var webViewModel: ThoxWebViewModel
@@ -36,6 +37,8 @@ struct ContentView: View {
             HermesRunReviewHost(profile: profile) { destination = nil }
         case .warRoomDashboard(let profile):
             WarRoomDashboardHost(profile: profile) { destination = nil }
+        case .workspaceBrowser(let profile):
+            WorkspaceBrowserHost(profile: profile) { destination = nil }
         case nil:
             WorkspaceOnboardingView(
                 model: onboardingModel,
@@ -49,6 +52,9 @@ struct ContentView: View {
                 },
                 onOpenHostedCompatibility: { _ in
                     destination = .hostedCompatibility
+                },
+                onOpenWorkspaceBrowser: { profile in
+                    destination = .workspaceBrowser(profile)
                 }
             )
         }

@@ -142,4 +142,10 @@ extension WorkspaceProfile {
             endpoint.url.port == nil &&
             endpoint.url.path.isEmpty
     }
+
+    /// The filesystem browser is an app-local capability, not a provider capability.
+    /// It is available only when the operator configured a local-device boundary.
+    var supportsLocalWorkspaceBrowser: Bool {
+        endpoint.boundary == .localMachine
+    }
 }

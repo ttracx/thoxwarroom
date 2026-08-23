@@ -6,6 +6,7 @@ Evidence is recorded per platform and must not be generalized across lanes.
 
 - Source: local `main` through `88c6dd1` plus documentation-only working changes.
 - Secret-free CI: passed deterministic XcodeGen/assets, 77 standalone package tests with warnings as errors, 43 integrated macOS app tests, and generic iOS Simulator app/test build.
+- GitHub Actions run `32641564386` for `fcd62e9` failed before every step; its only job has zero steps and the exact annotation `The job was not started because your account is locked due to a billing issue.` This is an account/remote-CI blocker, not source-test evidence.
 - Native slice: explicit Open WebUI/Hermes selection; provider-specific endpoint policy; Open WebUI credential/model catalog; credential-gated read-only buffered Hermes run review; linked read-only Mesh adapter.
 - Credential lifecycle: workspace-scoped non-synchronizing Keychain items; workspace deletion removes the credential before metadata and preserves metadata when secure deletion fails.
 - iOS archive/export: succeeded with Xcode 26.5 and XcodeGen 2.46.0.

@@ -55,6 +55,25 @@ packaged-app authentication/sign-out verification remains a release gate.
 - Re-authenticate or require explicit approval for high-impact actions.
 - Never infer authorization from possession of an unvalidated deep link.
 
+## Shared Core endpoint boundary
+
+`Packages/WarRoomCore` now rejects workspace endpoints with unsupported schemes,
+missing or malformed hosts, URL credentials, disallowed explicit ports, query or
+fragment components, or decoded `..` path traversal. Loopback, private-network,
+and hosted destinations are distinct values. Hosted access requires affirmative
+authorization and HTTPS; private-network HTTP and non-default ports require an
+explicit policy choice. These checks perform no DNS or network access.
+
+This syntactic classification is only the first egress gate. The future transport
+adapter must compare resolved addresses with the declared boundary on every
+connection and redirect, prevent DNS rebinding, enforce TLS trust, and avoid
+sending credentials until those checks pass. WR-002 defines protocol seams but
+does not persist credentials or make requests.
+
+Audit events redact every field marked sensitive plus secret-like field names
+before they cross the recording seam. Full prompts, documents, credentials, and
+tokens must never be reintroduced by a concrete audit store.
+
 ## Storage and retention
 
 - Use a workspace-scoped encrypted store for chats, documents, settings, and audit data.

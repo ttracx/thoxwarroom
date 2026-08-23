@@ -35,3 +35,15 @@
 - **Compliance impact:** creates review and evidence primitives without claiming certification.
 - **Final choice:** policy, approval, execution, and result are separate events with correlation IDs.
 - **Follow-up:** threat-model the approval protocol and build negative/replay tests.
+
+## ADR-004: Validate network identity before transport exists
+
+- **Decision:** `WarRoomCore` represents a provider destination only as a `ValidatedEndpoint` with a verified local-machine, private-network, or hosted boundary.
+- **Context:** workspace identity, feature capability, credentials, and egress policy must not collapse into an unrestricted URL string.
+- **Options considered:** validate in each UI; let transport classify destinations; construct a validated shared-core value before either layer can use an endpoint.
+- **Tradeoffs:** strict defaults require explicit configuration for private HTTP and non-default ports. This adds onboarding decisions but makes weaker transport visible and testable.
+- **Security impact:** URL credentials, unapproved schemes and ports, path traversal, query/fragment data, boundary mismatches, insecure hosted HTTP, and hosted access without affirmative authorization are rejected before a transport sees the endpoint.
+- **Local-first impact:** loopback and private destinations are first-class; public destinations never become an implicit fallback.
+- **Compliance impact:** the declared and detected destination class can be retained in redacted audit events. This is a control primitive, not proof of compliance.
+- **Final choice:** a dependency-free Swift package owns validation and transport-neutral seams; concrete network and secret-storage adapters remain outside WR-002.
+- **Follow-up:** re-check resolved IP addresses at connection time to prevent DNS rebinding, implement Keychain storage, and add redirect/egress enforcement in the transport adapter.

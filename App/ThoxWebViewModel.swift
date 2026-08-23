@@ -19,6 +19,19 @@ final class ThoxWebViewModel: ObservableObject {
         case error(String)
     }
 
+    enum NavigationDecision: Equatable {
+        case allowInApp
+        case openExternally
+        case cancel
+    }
+
+    enum SessionClearState: Equatable {
+        case persistent
+        case clearing
+        case cleared
+        case failed(String)
+    }
+
     /// Canonical landing URL. All subpaths are kept in-app; off-domain links
     /// are routed through `decidePolicyFor`.
     static let baseURL = URL(string: "https://webui.thox.ai")!
@@ -26,12 +39,28 @@ final class ThoxWebViewModel: ObservableObject {
     @Published private(set) var state: LoadState = .idle
     @Published private(set) var currentURL: URL = baseURL
     @Published private(set) var title: String = "ThoxWarRoom"
+    @Published private(set) var sessionClearState: SessionClearState = .persistent
     @Published var isReloadPending: Bool = false
 
     /// Persistent cookie store so the OpenWebUI login survives app restarts.
     /// Identical WKWebsiteDataStore.default() is set on both platforms.
     #if canImport(WebKit)
-    let dataStore: WKWebsiteDataStore = .default()
+    let dataStore: WKWebsiteDataStore
+    private let sessionDataCleaner: any SessionDataClearing
+    #endif
+
+    #if canImport(WebKit)
+    convenience init() {
+        let dataStore = WKWebsiteDataStore.default()
+        self.init(dataStore: dataStore)
+    }
+
+    init(dataStore: WKWebsiteDataStore, sessionDataCleaner: (any SessionDataClearing)? = nil) {
+        self.dataStore = dataStore
+        self.sessionDataCleaner = sessionDataCleaner ?? WebKitSessionDataCleaner(dataStore: dataStore)
+    }
+    #else
+    init() {}
     #endif
 
     func reload() {
@@ -58,21 +87,59 @@ final class ThoxWebViewModel: ObservableObject {
         }
         if case .error = state { return } // don't clobber a sticky error
         state = .loaded
+        if sessionClearState == .cleared {
+            sessionClearState = .persistent
+        }
     }
 
     func didFailLoading(error: String) {
         state = .error(error)
     }
 
-    /// Navigation policy decision: keep webui.thox.ai and its subpaths in-app;
-    /// open anything else via the system browser.
-    func shouldOpenExternally(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return true }
-        let allowedHosts: Set<String> = ["webui.thox.ai"]
-        return !allowedHosts.contains(host)
+    /// Allows only the canonical HTTPS origin in-app. External URLs are handed
+    /// to the system browser only for explicit user link activations and only
+    /// when they are credential-free HTTPS URLs on the default port.
+    func navigationDecision(for url: URL?, isUserInitiated: Bool) -> NavigationDecision {
+        guard let url,
+              url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased(),
+              !host.isEmpty,
+              url.user == nil,
+              url.password == nil,
+              url.port == nil || url.port == 443 else {
+            return .cancel
+        }
+
+        if host == Self.baseURL.host {
+            return .allowInApp
+        }
+
+        return isUserInitiated ? .openExternally : .cancel
     }
 
+    /// Removes cookies, local storage, caches, and other persistent WebKit data,
+    /// then returns the shell to its canonical landing URL. The caller should
+    /// present confirmation before invoking this destructive action.
+    #if canImport(WebKit)
+    func clearPersistentSession() async {
+        guard sessionClearState != .clearing else { return }
+        sessionClearState = .clearing
+
+        do {
+            try await sessionDataCleaner.clear()
+            currentURL = Self.baseURL
+            title = "ThoxWarRoom"
+            state = .loading
+            isReloadPending = true
+            sessionClearState = .cleared
+        } catch {
+            sessionClearState = .failed("Unable to clear the persistent session.")
+        }
+    }
+    #endif
+
     func openCurrentURLExternally() {
+        guard navigationDecision(for: currentURL, isUserInitiated: true) != .cancel else { return }
         #if canImport(AppKit)
         NSWorkspace.shared.open(currentURL)
         #elseif canImport(UIKit)
@@ -86,6 +153,33 @@ final class ThoxWebViewModel: ObservableObject {
         reload()
     }
 }
+
+#if canImport(WebKit)
+@MainActor
+protocol SessionDataClearing: AnyObject {
+    func clear() async throws
+}
+
+@MainActor
+final class WebKitSessionDataCleaner: SessionDataClearing {
+    private let dataStore: WKWebsiteDataStore
+
+    init(dataStore: WKWebsiteDataStore) {
+        self.dataStore = dataStore
+    }
+
+    func clear() async throws {
+        await withCheckedContinuation { continuation in
+            dataStore.removeData(
+                ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+                modifiedSince: .distantPast
+            ) {
+                continuation.resume()
+            }
+        }
+    }
+}
+#endif
 
 #if canImport(UIKit)
 import UIKit

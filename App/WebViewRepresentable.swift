@@ -84,21 +84,46 @@ struct ThoxWebView: NSViewRepresentable {
         func webView(_ webView: WKWebView,
                      decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            if let url = navigationAction.request.url, model.shouldOpenExternally(url) {
+            let decision = model.navigationDecision(
+                for: navigationAction.request.url,
+                isUserInitiated: navigationAction.navigationType == .linkActivated
+            )
+            switch decision {
+            case .allowInApp:
+                decisionHandler(.allow)
+            case .openExternally:
+                guard let url = navigationAction.request.url else {
+                    decisionHandler(.cancel)
+                    return
+                }
                 NSWorkspace.shared.open(url)
                 decisionHandler(.cancel)
-                return
+            case .cancel:
+                decisionHandler(.cancel)
             }
-            decisionHandler(.allow)
         }
 
-        // Open target=_blank links externally
+        // Keep an allowed target=_blank in this WebView. Only explicit, safe
+        // off-domain link activations may leave the app.
         func webView(_ webView: WKWebView,
                      createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction,
                      windowFeatures: WKWindowFeatures) -> WKWebView? {
-            if let url = navigationAction.request.url {
-                NSWorkspace.shared.open(url)
+            let decision = model.navigationDecision(
+                for: navigationAction.request.url,
+                isUserInitiated: navigationAction.navigationType == .linkActivated
+            )
+            switch decision {
+            case .allowInApp:
+                if let url = navigationAction.request.url {
+                    webView.load(URLRequest(url: url))
+                }
+            case .openExternally:
+                if let url = navigationAction.request.url {
+                    NSWorkspace.shared.open(url)
+                }
+            case .cancel:
+                break
             }
             return nil
         }
@@ -174,20 +199,44 @@ struct ThoxWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView,
                      decidePolicyFor navigationAction: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            if let url = navigationAction.request.url, model.shouldOpenExternally(url) {
+            let decision = model.navigationDecision(
+                for: navigationAction.request.url,
+                isUserInitiated: navigationAction.navigationType == .linkActivated
+            )
+            switch decision {
+            case .allowInApp:
+                decisionHandler(.allow)
+            case .openExternally:
+                guard let url = navigationAction.request.url else {
+                    decisionHandler(.cancel)
+                    return
+                }
                 UIApplication.shared.open(url)
                 decisionHandler(.cancel)
-                return
+            case .cancel:
+                decisionHandler(.cancel)
             }
-            decisionHandler(.allow)
         }
 
         func webView(_ webView: WKWebView,
                      createWebViewWith configuration: WKWebViewConfiguration,
                      for navigationAction: WKNavigationAction,
                      windowFeatures: WKWindowFeatures) -> WKWebView? {
-            if let url = navigationAction.request.url {
-                UIApplication.shared.open(url)
+            let decision = model.navigationDecision(
+                for: navigationAction.request.url,
+                isUserInitiated: navigationAction.navigationType == .linkActivated
+            )
+            switch decision {
+            case .allowInApp:
+                if let url = navigationAction.request.url {
+                    webView.load(URLRequest(url: url))
+                }
+            case .openExternally:
+                if let url = navigationAction.request.url {
+                    UIApplication.shared.open(url)
+                }
+            case .cancel:
+                break
             }
             return nil
         }

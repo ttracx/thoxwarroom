@@ -4,6 +4,7 @@
 // URL, and the load state machine without spinning up a real WKWebView.
 
 import XCTest
+import WebKit
 @testable import ThoxWarRoom
 
 final class ThoxWebViewModelTests: XCTestCase {
@@ -21,19 +22,80 @@ final class ThoxWebViewModelTests: XCTestCase {
     }
 
     @MainActor
-    func testOffDomainOpensExternally() {
+    func testUserActivatedHTTPSOffDomainOpensExternally() {
         let model = ThoxWebViewModel()
-        XCTAssertTrue(model.shouldOpenExternally(URL(string: "https://github.com/foo")!))
-        XCTAssertTrue(model.shouldOpenExternally(URL(string: "https://accounts.google.com/x")!))
-        XCTAssertTrue(model.shouldOpenExternally(URL(string: "https://example.com/")!))
+        for rawURL in [
+            "https://github.com/foo",
+            "https://accounts.google.com/x",
+            "https://example.com/"
+        ] {
+            XCTAssertEqual(
+                model.navigationDecision(for: URL(string: rawURL), isUserInitiated: true),
+                .openExternally,
+                rawURL
+            )
+        }
     }
 
     @MainActor
     func testWebUIAndSubpathsStayInApp() {
         let model = ThoxWebViewModel()
-        XCTAssertFalse(model.shouldOpenExternally(URL(string: "https://webui.thox.ai/")!))
-        XCTAssertFalse(model.shouldOpenExternally(URL(string: "https://webui.thox.ai/chat")!))
-        XCTAssertFalse(model.shouldOpenExternally(URL(string: "https://webui.thox.ai/api/v1/chats")!))
+        for rawURL in [
+            "https://webui.thox.ai/",
+            "https://webui.thox.ai/chat",
+            "https://webui.thox.ai/api/v1/chats",
+            "HTTPS://WEBUI.THOX.AI:443/chat"
+        ] {
+            XCTAssertEqual(
+                model.navigationDecision(for: URL(string: rawURL), isUserInitiated: false),
+                .allowInApp,
+                rawURL
+            )
+        }
+    }
+
+    @MainActor
+    func testAutomaticOffDomainNavigationIsCancelled() {
+        let model = ThoxWebViewModel()
+        XCTAssertEqual(
+            model.navigationDecision(
+                for: URL(string: "https://accounts.example.com/redirect"),
+                isUserInitiated: false
+            ),
+            .cancel
+        )
+    }
+
+    @MainActor
+    func testUnsafeSchemesCredentialsAndPortsAreCancelled() {
+        let model = ThoxWebViewModel()
+        let blockedURLs: [URL?] = [
+            nil,
+            URL(string: "http://webui.thox.ai"),
+            URL(string: "javascript:alert(1)"),
+            URL(string: "file:///etc/passwd"),
+            URL(string: "thox://webui.thox.ai/callback"),
+            URL(string: "https://user:password@webui.thox.ai"),
+            URL(string: "https://webui.thox.ai:8443"),
+            URL(string: "https://example.com:8443")
+        ]
+
+        for url in blockedURLs {
+            XCTAssertEqual(
+                model.navigationDecision(for: url, isUserInitiated: true),
+                .cancel,
+                url?.absoluteString ?? "nil URL"
+            )
+        }
+
+        XCTAssertEqual(
+            model.navigationDecision(
+                for: URL(string: "https://webui.thox.ai.evil.example"),
+                isUserInitiated: true
+            ),
+            .openExternally,
+            "A host suffix must never be mistaken for the trusted in-app origin"
+        )
     }
 
     @MainActor
@@ -102,5 +164,73 @@ final class ThoxWebViewModelTests: XCTestCase {
         if case .loading = model.state {} else {
             XCTFail("resetForRetry should land state at .loading (error cleared, reload armed)")
         }
+    }
+
+    @MainActor
+    func testClearPersistentSessionUpdatesStateAndReloadsCanonicalURL() async {
+        let cleaner = SessionDataCleanerStub()
+        let model = ThoxWebViewModel(
+            dataStore: .nonPersistent(),
+            sessionDataCleaner: cleaner
+        )
+        model.didStartLoading(url: URL(string: "https://webui.thox.ai/chat/secret")!)
+        model.didFinishLoading(
+            url: URL(string: "https://webui.thox.ai/chat/secret")!,
+            title: "Sensitive conversation"
+        )
+
+        await model.clearPersistentSession()
+
+        XCTAssertEqual(cleaner.clearCallCount, 1)
+        XCTAssertEqual(model.sessionClearState, .cleared)
+        XCTAssertEqual(model.currentURL, ThoxWebViewModel.baseURL)
+        XCTAssertEqual(model.title, "ThoxWarRoom")
+        XCTAssertEqual(model.state, .loading)
+        XCTAssertTrue(model.isReloadPending)
+
+        model.didFinishLoading(url: ThoxWebViewModel.baseURL, title: "Open WebUI")
+        XCTAssertEqual(
+            model.sessionClearState,
+            .persistent,
+            "The sign-out control must become available again after the landing page reloads"
+        )
+    }
+
+    @MainActor
+    func testClearPersistentSessionFailureIsNonSensitiveAndDoesNotReload() async {
+        let cleaner = SessionDataCleanerStub(result: .failure(SessionDataCleanerStub.TestError.failed))
+        let model = ThoxWebViewModel(
+            dataStore: .nonPersistent(),
+            sessionDataCleaner: cleaner
+        )
+
+        await model.clearPersistentSession()
+
+        XCTAssertEqual(
+            model.sessionClearState,
+            .failed("Unable to clear the persistent session.")
+        )
+        XCTAssertFalse(model.isReloadPending)
+        XCTAssertEqual(model.state, .idle)
+    }
+
+}
+
+@MainActor
+private final class SessionDataCleanerStub: SessionDataClearing {
+    enum TestError: Error {
+        case failed
+    }
+
+    private let result: Result<Void, Error>
+    private(set) var clearCallCount = 0
+
+    init(result: Result<Void, Error> = .success(())) {
+        self.result = result
+    }
+
+    func clear() async throws {
+        clearCallCount += 1
+        try result.get()
     }
 }

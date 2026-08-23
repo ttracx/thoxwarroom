@@ -1,10 +1,10 @@
 # ThoxWarRoom
 
-> Native SwiftUI wrapper for [webui.thox.ai](https://webui.thox.ai). One codebase, two targets: macOS 14+ (Apple Silicon) and iOS 17+ (iPhone). Built for THOX AI LLC.
+> Local-first native SwiftUI foundation for private THOX workspaces. One codebase, two targets: macOS 14+ (universal) and iOS 17+ (iPhone). Built for THOX AI LLC.
 
-ThoxWarRoom is a thin, branded shell that loads the THOX Open WebUI in a persistent `WKWebView`. Sign in once; the cookie store keeps you signed in across launches. A confirmed native sign-out control clears that persistent website data. Only safe, user-activated HTTPS links may open off-domain in the system browser. Dark-mode-first, THOX emerald chip-mark icon, native macOS titlebar and iOS navigation chrome.
+ThoxWarRoom now starts with native workspace onboarding. Users explicitly choose a local-device, private-network, or hosted boundary before any provider can be opened; hosted transfer requires separate consent. Endpoint/profile metadata is stored locally without credentials. The former Open WebUI shell remains as a compatibility surface only for an explicitly authorized, exact `https://webui.thox.ai` profile.
 
-> **Current scope:** v4.2 is a compatibility shell, not yet the full native War Room product that existed in the v4.1 Flutter history. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md) for the evidence-based native iOS/macOS delivery plan.
+> **Current scope:** v4.2 has the clean-room shared core and native onboarding foundation, but not yet native chat, Hermes, fleet/mesh, encrypted history, or completed distribution. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [current service contracts](docs/current_service_contracts.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md).
 
 Current build, signing, upload, and blocker evidence is recorded in [release_evidence.md](release_evidence.md).
 
@@ -12,8 +12,8 @@ Current build, signing, upload, and blocker evidence is recorded in [release_evi
 
 | Target | Platform | Min OS | UI framework | Web framework |
 |---|---|---|---|---|
-| `ThoxWarRoom macOS` | macOS 14+ | Apple Silicon | SwiftUI | `WKWebView` via `NSViewRepresentable` |
-| `ThoxWarRoom iOS`   | iOS 17+   | iPhone       | SwiftUI | `WKWebView` via `UIViewRepresentable` |
+| `ThoxWarRoom macOS` | macOS 14+ | Universal | SwiftUI | Native onboarding + gated `WKWebView` compatibility |
+| `ThoxWarRoom iOS`   | iOS 17+   | iPhone    | SwiftUI | Native onboarding + gated `WKWebView` compatibility |
 
 Both targets share the same Swift sources in `App/` — platform-conditional via `#if os(macOS)` / `#if os(iOS)`. The bundle identifier is `ai.thox.warroom` for both. Apple Developer Team: `DVJ6Z5343U` (THOX AI LLC).
 
@@ -24,7 +24,9 @@ thoxwarroom/
 ├── project.yml                 # XcodeGen — single source of truth for the Xcode project
 ├── App/
 │   ├── ThoxWarRoomApp.swift    # @main App, scene wiring, dark appearance
-│   ├── ContentView.swift       # Root view: WKWebView + branded overlay
+│   ├── ContentView.swift       # Root routing: onboarding or authorized compatibility surface
+│   ├── WorkspaceOnboarding*.swift # Boundary selection, metadata store, and native states
+│   ├── HostedCompatibilityView.swift # Explicit exact-host WebView entry
 │   ├── WebViewRepresentable.swift  # macOS NSViewRepresentable + iOS UIViewRepresentable
 │   ├── ThoxWebViewModel.swift  # ObservableObject: load state, navigation policy
 │   ├── ThoxTheme.swift         # THOX emerald accent + dark surfaces
@@ -38,7 +40,9 @@ thoxwarroom/
 │   ├── AppIcon.icns
 │   └── AppIcon.appiconset/     # Loose iOS iconset (mirrored into Assets.xcassets)
 ├── Tests/
-│   └── ThoxWarRoomTests.swift  # Navigation policy + load state machine tests
+│   ├── ThoxWarRoomTests.swift  # Navigation policy + load state machine tests
+│   └── WorkspaceOnboardingTests.swift # Boundary, consent, persistence, and gate tests
+├── Packages/WarRoomCore/       # Shared endpoint, workspace, audit, credential/transport seams
 ├── scripts/
 │   ├── gen_appiconset.py       # Regenerate THOX-green chip-mark icons
 │   ├── build_macos.sh          # Developer ID signed, notarized, stapled macOS DMG
@@ -59,7 +63,7 @@ thoxwarroom/
 # 1) Clean-clone bootstrap + unsigned build/test (no global XcodeGen install)
 ./scripts/bootstrap.sh
 
-# 3) Build a release-ready Developer ID + notarized macOS DMG.
+# 2) Build a release-ready Developer ID + notarized macOS DMG.
 # NOTARY_PROFILE must already exist in the login Keychain.
 NOTARY_PROFILE=THOX_NOTARY ./scripts/build_macos.sh
 # Output: build/macos/ThoxWarRoom-Release-arm64.dmg
@@ -67,7 +71,7 @@ NOTARY_PROFILE=THOX_NOTARY ./scripts/build_macos.sh
 # Credential-free local packaging check (explicitly not release-ready)
 SIGNING_MODE=unsigned SKIP_NOTARIZE=1 ./scripts/build_macos.sh
 
-# 4) Build the iOS app + upload to TestFlight
+# 3) Build the iOS app + upload to TestFlight
 APPLE_ID=you@apple.com APPLE_PASSWORD=app-specific-pw \
     ./scripts/build_ios.sh
 # Output: build/ios/export/ThoxWarRoom.ipa
@@ -79,10 +83,13 @@ APPLE_ID=you@apple.com APPLE_PASSWORD=app-specific-pw \
 open build/macos/derived/Build/Products/Release/ThoxWarRoom.app
 ```
 
-The window loads `https://webui.thox.ai` and persists the session cookie via `WKWebsiteDataStore.default()` so the next launch stays signed in.
+The app opens native workspace onboarding. Only an explicitly consented exact `https://webui.thox.ai` hosted profile exposes the compatibility WebView.
 
 ## Behavior
 
+- **Explicit workspace boundary** — local device is the default; private network and hosted service are separately labeled. No provider is contacted while saving metadata.
+- **Hosted consent and exact-origin gate** — hosted configuration requires affirmative data-transfer consent. The compatibility WebView appears only for the credential-free, default-port, empty-path `https://webui.thox.ai` origin.
+- **Metadata-only persistence** — onboarding stores a validated `WorkspaceProfile` in local preferences. Credentials are rejected in URLs and are not accepted or stored by this slice; Keychain infrastructure remains in progress.
 - **Persistent session with explicit purge** — `WKWebViewConfiguration.websiteDataStore = .default()` keeps login data across relaunch. **Sign Out** requires confirmation, clears all WebKit website data in the app container, reports clearing/success/failure state, and reloads the canonical URL after success. This clears local session material; server-side token revocation is not yet verified.
 - **Strict in-app policy** — only credential-free `https://webui.thox.ai` URLs on the default HTTPS port are allowed in the WebView. Host suffixes, HTTP, custom schemes, embedded credentials, and non-default ports are never allowed in-app.
 - **Safe external navigation** — credential-free, default-port HTTPS links open in the system browser only for an explicit `.linkActivated` action. Automatic redirects and script-driven off-domain navigations are cancelled. Allowed `target=_blank` links stay in the current WebView.
@@ -125,7 +132,7 @@ xcodebuild \
     test
 ```
 
-12 unit tests cover:
+37 current tests cover 16 Shared Core cases plus 21 integrated macOS app cases, including:
 
 - Base URL is `https://webui.thox.ai`
 - User-activated safe HTTPS off-domain URLs → external
@@ -138,6 +145,9 @@ xcodebuild \
 - Reload lifecycle (`isReloadPending` flips and acknowledges)
 - `resetForRetry` arms a reload and lands in `.loading`
 - Persistent-session clearing success/failure state, canonical reload, and non-sensitive errors
+- Local/private/hosted boundary validation and explicit hosted consent
+- Metadata round-trip, corrupt-state recovery, deletion, and credential rejection
+- Exact-host compatibility availability; suffixes, ports, and paths remain denied
 
 ## Design system
 

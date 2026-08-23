@@ -48,7 +48,7 @@ flowchart LR
 
 ## Current architecture
 
-The current v4.2 app is a shared SwiftUI shell that embeds `https://webui.thox.ai` in a persistent `WKWebView`. It has no native workspace, Hermes, War Room, local persistence, audit, or local model modules.
+The current v4.2 app has a dependency-free Shared Core plus native SwiftUI workspace onboarding for local-device, private-network, and explicitly consented hosted profiles. It persists validated profile metadata locally without credentials. The persistent `WKWebView` remains only as an exact-origin `https://webui.thox.ai` compatibility surface after hosted authorization. Native provider transport, Keychain credentials, chat, Hermes, War Room, encrypted history, and durable audit persistence remain in progress.
 
 ## Integration points
 

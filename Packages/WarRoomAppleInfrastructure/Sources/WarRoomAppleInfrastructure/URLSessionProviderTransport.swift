@@ -181,7 +181,9 @@ public struct URLSessionProviderTransport: ProviderTransport, @unchecked Sendabl
             ? String(components.percentEncodedPath.dropLast())
             : components.percentEncodedPath
         components.percentEncodedPath = basePath + request.relativePath
-        components.query = nil
+        components.queryItems = request.queryItems.isEmpty ? nil : request.queryItems.map {
+            URLQueryItem(name: $0.name, value: $0.value)
+        }
         components.fragment = nil
         guard let destination = components.url,
               Origin(destination) == Origin(endpoint.url) else {

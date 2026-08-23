@@ -44,9 +44,16 @@ public struct ProviderRequest: Equatable, Sendable {
 
     public let method: Method
     public let relativePath: String
+    /// Validated non-secret query items. Credentials and sensitive content must never use this field.
+    public let queryItems: [ProviderQueryItem]
     public let body: Data?
 
-    public init(method: Method, relativePath: String, body: Data? = nil) throws {
+    public init(
+        method: Method,
+        relativePath: String,
+        queryItems: [ProviderQueryItem] = [],
+        body: Data? = nil
+    ) throws {
         let decodedPath = relativePath.removingPercentEncoding ?? relativePath
         guard relativePath.hasPrefix("/"),
               !relativePath.hasPrefix("//"),
@@ -58,15 +65,51 @@ public struct ProviderRequest: Equatable, Sendable {
               !relativePath.contains("?") && !relativePath.contains("#") else {
             throw ProviderRequestError.invalidRelativePath
         }
+        guard queryItems.count <= 16,
+              Set(queryItems.map(\.name)).count == queryItems.count else {
+            throw ProviderRequestError.invalidQueryItems
+        }
         self.method = method
         self.relativePath = relativePath
+        self.queryItems = queryItems
         self.body = body
     }
+}
+
+/// A bounded RFC 3986 unreserved query item intended only for routing and filtering.
+public struct ProviderQueryItem: Equatable, Hashable, Sendable {
+    public let name: String
+    public let value: String
+
+    public init(name: String, value: String) throws {
+        guard (1...64).contains(name.utf8.count),
+              (1...512).contains(value.utf8.count),
+              Self.isUnreserved(name),
+              Self.isUnreserved(value) else {
+            throw ProviderQueryItemError.invalidComponent
+        }
+        self.name = name
+        self.value = value
+    }
+
+    private static func isUnreserved(_ value: String) -> Bool {
+        value.utf8.allSatisfy { byte in
+            (byte >= 65 && byte <= 90)
+                || (byte >= 97 && byte <= 122)
+                || (byte >= 48 && byte <= 57)
+                || byte == 45 || byte == 46 || byte == 95 || byte == 126
+        }
+    }
+}
+
+public enum ProviderQueryItemError: Error, Equatable, Sendable {
+    case invalidComponent
 }
 
 /// A reason that a provider request cannot be constructed.
 public enum ProviderRequestError: Error, Equatable, Sendable {
     case invalidRelativePath
+    case invalidQueryItems
 }
 
 /// A transport-neutral provider response.

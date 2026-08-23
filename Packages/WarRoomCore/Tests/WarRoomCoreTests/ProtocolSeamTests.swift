@@ -20,6 +20,36 @@ final class ProtocolSeamTests: XCTestCase {
         }
     }
 
+    func testProviderRequestAcceptsOnlyBoundedNonSecretQueryItems() throws {
+        let meshID = try ProviderQueryItem(
+            name: "mesh_id",
+            value: "123e4567-e89b-12d3-a456-426614174000"
+        )
+        let limit = try ProviderQueryItem(name: "limit", value: "100")
+        let request = try ProviderRequest(
+            method: .get,
+            relativePath: "/api/events",
+            queryItems: [meshID, limit]
+        )
+        XCTAssertEqual(request.queryItems, [meshID, limit])
+
+        for (name, value) in [
+            ("", "value"),
+            ("token", "secret value"),
+            ("redirect", "https://evil.example"),
+            ("line", "one\ntwo"),
+        ] {
+            XCTAssertThrowsError(try ProviderQueryItem(name: name, value: value))
+        }
+        XCTAssertThrowsError(try ProviderRequest(
+            method: .get,
+            relativePath: "/api/events",
+            queryItems: [limit, limit]
+        )) { error in
+            XCTAssertEqual(error as? ProviderRequestError, .invalidQueryItems)
+        }
+    }
+
     func testProtocolSeamsSupportInMemoryImplementations() async throws {
         let endpoint = try EndpointValidator.validate(
             "http://localhost",

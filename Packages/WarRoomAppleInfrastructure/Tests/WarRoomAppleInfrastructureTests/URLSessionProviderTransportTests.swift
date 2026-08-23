@@ -47,6 +47,31 @@ final class URLSessionProviderTransportTests: XCTestCase {
         )
     }
 
+    func testComposesValidatedQueryItemsWithoutRawQueryStrings() async throws {
+        let meshID = try ProviderQueryItem(
+            name: "mesh_id",
+            value: "123e4567-e89b-12d3-a456-426614174000"
+        )
+        let limit = try ProviderQueryItem(name: "limit", value: "100")
+        StubURLProtocol.handler = { request in
+            XCTAssertEqual(
+                request.url?.absoluteString,
+                "https://provider.example.com/api/events?mesh_id=123e4567-e89b-12d3-a456-426614174000&limit=100"
+            )
+            return .http(statusCode: 200, body: Data())
+        }
+
+        _ = try await transport().send(
+            try ProviderRequest(
+                method: .get,
+                relativePath: "/api/events",
+                queryItems: [meshID, limit]
+            ),
+            to: hostedEndpoint("https://provider.example.com"),
+            credential: nil
+        )
+    }
+
     func testRejectsRequestAndResponseBodiesOverPolicyLimits() async throws {
         let policy = try ProviderTransportPolicy(
             maximumRequestBodyBytes: 2,

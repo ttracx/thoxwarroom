@@ -282,6 +282,33 @@ native client should send canonical choices. `409` means the run has no active
 or pending approval. A mutating approval action must be visibly confirmed and
 written to the local audit store before transmission.
 
+#### Executable Hermes evidence boundary
+
+Revision `f44a3ade4570e5026c56bd84cd9cbf2189c7503b` adds an offline,
+fail-closed evidence validator without enabling a provider mutation or making a
+network request. The checked-in manifest truthfully records 0 captured and 11
+missing requirements. Audit succeeds only because that incomplete state is
+internally consistent; qualification exits 2 until every required sanitized
+artifact is present:
+
+```bash
+swift run --package-path Packages/WarRoomHermes \
+  hermes-contract-evidence audit \
+  Packages/WarRoomHermes/Evidence/private-api/current.manifest.json
+
+swift run --package-path Packages/WarRoomHermes \
+  hermes-contract-evidence qualify \
+  Packages/WarRoomHermes/Evidence/private-api/current.manifest.json
+```
+
+The 11 requirements cover the credential boundary, capabilities, run request
+and response, status, SSE transport and frames, approval, stop, cancellation,
+and redacted errors. The validator confines bounded text artifacts beside the
+manifest; verifies paths, hashes, byte counts, media types, and references; and
+rejects symlinks, traversal, binary data, and secret-like content. Passing it
+would establish reviewed evidence-bundle integrity, not provider authorization,
+physical-device behavior, or production service readiness.
+
 ### 2.2 Hermes dashboard transport (not the first native adapter)
 
 The dashboard is a local browser-oriented surface protected by an ephemeral
@@ -356,6 +383,29 @@ For MVP-03, map event severity to alerts locally. No separate current THOX
 `/alerts` service contract was found, so an alerts endpoint would be an
 unsupported invention. Do not implement pairing, device deletion, token
 creation, or other control-plane writes in the read-only War Room slice.
+
+### 3.1 Executable Mesh evidence boundary
+
+The same revision adds `mesh-contract-evidence`, an offline validator with no
+capture command and no control-plane write. Its checked-in manifest records 0
+captured and 10 missing requirements, so audit exits 0 and qualification exits
+2 with the exact missing set:
+
+```bash
+swift run --package-path Packages/WarRoomMesh \
+  mesh-contract-evidence audit \
+  Packages/WarRoomMesh/Evidence/private-coordinator/current.manifest.json
+
+swift run --package-path Packages/WarRoomMesh \
+  mesh-contract-evidence qualify \
+  Packages/WarRoomMesh/Evidence/private-coordinator/current.manifest.json
+```
+
+The gate requires sanitized proof of the bearer/membership boundary, test
+identity, devices/topology/events DTOs, provenance/freshness behavior,
+authentication/authorization errors, cancellation, and network failure. It
+also rejects retained private Mesh UUIDs and secret/session material. This does
+not replace a sanctioned coordinator capture or direct-device verification.
 
 ## 4. Native adapter boundaries
 

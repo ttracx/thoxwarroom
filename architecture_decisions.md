@@ -227,3 +227,27 @@
 - **Compliance impact:** rejected prototype evidence is not a deployed security control; DNS-bound transport remains required before high-trust private-provider release claims.
 - **Final choice:** preserve the working exact-origin URLSession transport and require a connection primitive that supports both an approved peer address and original-host SNI/trust.
 - **Follow-up:** design and independently review a bounded Network.framework HTTP/TLS transport, then run live private-endpoint and physical-device certificate tests before adoption.
+
+## ADR-020: Prove numeric-peer TLS with original-host identity before transport adoption
+
+- **Decision:** Accept Network.framework as the feasible connection primitive for DNS-bound TLS, but do not replace the current URLSession transports until a bounded HTTP/1.1/SSE implementation and cancellation coordinator are independently tested.
+- **Context:** A production defense must connect to a validated numeric peer while preserving the logical hostname for SNI and system certificate verification. URLSession exposes no supported per-request resolver binding.
+- **Options considered:** keep the risk documented; preflight DNS then use URLSession; weaken trust with an IP URL/custom challenge; use `NWConnection` with a numeric endpoint and `sec_protocol_options_set_tls_server_name`.
+- **Tradeoffs:** Network.framework closes the address-binding primitive gap but supplies a byte stream rather than URLSession's HTTP stack. Adoption therefore requires strict status/header/body framing, chunked and SSE handling, redirect re-resolution, bounds, and exactly-once timeout/cancellation completion.
+- **Security impact:** a credential-free warnings-as-errors probe preserved default trust, rejected an expired certificate, and returned HTTP 200 from every approved `webui.thox.ai` numeric peer using original-host SNI and `Host`. No custom verify block is needed for public PKI. This probe is feasibility evidence, not an app control.
+- **Local-first impact:** the design adds no cloud dependency or telemetry and can enforce local/private/hosted address classes at the connection boundary.
+- **Compliance impact:** keeping feasibility separate from deployed control avoids overstating DNS-rebinding resistance or private-endpoint readiness.
+- **Final choice:** proceed with a shared resolver/classifier, numeric `NWConnection` factory, bounded HTTP/1.1/SSE codec, same-origin redirect re-resolution, and actor/lock-backed terminal-state coordinator as a separately reviewed slice.
+- **Follow-up:** implement and threat-test that slice, then run private-CA/public-PKI and physical iOS/macOS certificate tests before switching provider traffic.
+
+## ADR-021: Use fail-closed local manifests for Hermes and Mesh live-contract evidence
+
+- **Decision:** Track Hermes and Mesh qualification as bounded, sanitized, offline-verifiable manifests whose `qualify` mode fails while any required category is missing.
+- **Context:** Current typed clients and synthetic tests prove source behavior but not the authenticated private services, authorization boundary, cancellation semantics, or physical runtime.
+- **Options considered:** infer completion from current server source; retain informal screenshots/logs; enable capture or mutation commands in the app; add local integrity validators with truthful all-missing manifests.
+- **Tradeoffs:** validators add package/test surface and still require a sanctioned operator capture, but make missing evidence exact, reviewable, and resistant to traversal, symlink, size, digest, binary, and secret-retention mistakes.
+- **Security impact:** evidence artifacts remain fixed-root, bounded, text-only, hash-verified, and redacted. Neither tool performs network requests, stores credentials, or enables provider mutations.
+- **Local-first impact:** validation is entirely local and adds no telemetry or hosted storage.
+- **Compliance impact:** manifest integrity improves auditability but is not authorization, compliance certification, or proof that a production service handled data correctly.
+- **Final choice:** ship the validators and keep both checked-in manifests at truthful 0-captured status until sanctioned evidence exists.
+- **Follow-up:** perform dedicated non-production captures, independently review redaction and provenance, then qualify before composing live mutation or readiness claims.

@@ -69,8 +69,11 @@ boundaries are verified.
 
 - App Store Connect owner/admin authentication and latest-agreement status.
 - Final choice of platforms, primary language, SKU, and user-access scope.
-- Public HTTPS support URL for each platform version.
-- Public HTTPS privacy-policy URL for iOS and macOS.
+- Support URL candidate: `https://www.thox.ai/help` (live HTTPS help center
+  verified 2026-08-23; owner must confirm it is the intended app support page).
+- Privacy-policy URL candidate: `https://www.thox.ai/privacy` (live HTTPS policy
+  verified 2026-08-23; owner/legal must confirm its January 1, 2025 text covers
+  this app and every enabled local, private-network, and optional hosted flow).
 - App privacy answers covering every platform and any optional hosted service
   that is enabled in the submitted binary.
 - Export-compliance determination for direct CryptoKit AES-256-GCM use and TLS;

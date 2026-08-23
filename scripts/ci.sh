@@ -36,6 +36,9 @@ xcodegen generate --quiet
 step "Regenerating app icons"
 python3 scripts/gen_appiconset.py
 
+step "Validating app icon catalogs"
+python3 scripts/validate_appiconsets.py
+
 step "Compiling Swift sources (sanity)"
 xcodebuild \
     -project ThoxWarRoom.xcodeproj \
@@ -58,8 +61,8 @@ xcodebuild \
     test-without-building 2>&1 | tail -40
 
 if [ -z "${SKIP_MACOS_BUILD:-}" ]; then
-    step "Building signed macOS app"
-    SKIP_NOTARIZE=${SKIP_NOTARIZE:-1} BUILD_DIR=build/macos-ci ./scripts/build_macos.sh
+    step "Building unsigned macOS packaging artifact (CI validation only)"
+    SIGNING_MODE=unsigned SKIP_NOTARIZE=1 BUILD_DIR=build/macos-ci ./scripts/build_macos.sh
 fi
 
 if [ -z "${SKIP_IOS_BUILD:-}" ]; then

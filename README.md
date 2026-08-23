@@ -2,7 +2,7 @@
 
 > Native SwiftUI wrapper for [webui.thox.ai](https://webui.thox.ai). One codebase, two targets: macOS 14+ (Apple Silicon) and iOS 17+ (iPhone). Built for THOX AI LLC.
 
-ThoxWarRoom is a thin, branded shell that loads the THOX Open WebUI in a persistent `WKWebView`. Sign in once; the cookie store keeps you signed in across launches. Off-domain links open in the system browser instead of navigating away. Dark-mode-first, THOX emerald chip-mark icon, native macOS titlebar and iOS navigation chrome.
+ThoxWarRoom is a thin, branded shell that loads the THOX Open WebUI in a persistent `WKWebView`. Sign in once; the cookie store keeps you signed in across launches. A confirmed native sign-out control clears that persistent website data. Only safe, user-activated HTTPS links may open off-domain in the system browser. Dark-mode-first, THOX emerald chip-mark icon, native macOS titlebar and iOS navigation chrome.
 
 > **Current scope:** v4.2 is a compatibility shell, not yet the full native War Room product that existed in the v4.1 Flutter history. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md) for the evidence-based native iOS/macOS delivery plan.
 
@@ -39,7 +39,7 @@ thoxwarroom/
 │   └── ThoxWarRoomTests.swift  # Navigation policy + load state machine tests
 ├── scripts/
 │   ├── gen_appiconset.py       # Regenerate THOX-green chip-mark icons
-│   ├── build_macos.sh          # Signed .app + arm64 .dmg on /Volumes/VibeStore/build
+│   ├── build_macos.sh          # Developer ID signed, notarized, stapled macOS DMG
 │   ├── build_ios.sh            # Archive + TestFlight upload
 │   ├── ci.sh                   # Local CI (no GitHub Actions)
 │   └── smoke_test.sh           # E2E launch + persistent login check
@@ -57,9 +57,13 @@ xcodegen generate
 # 2) Build + test
 ./scripts/ci.sh
 
-# 3) Build the macOS app + a distributable arm64 .dmg
-./scripts/build_macos.sh
+# 3) Build a release-ready Developer ID + notarized macOS DMG.
+# NOTARY_PROFILE must already exist in the login Keychain.
+NOTARY_PROFILE=THOX_NOTARY ./scripts/build_macos.sh
 # Output: build/macos/ThoxWarRoom-Release-arm64.dmg
+
+# Credential-free local packaging check (explicitly not release-ready)
+SIGNING_MODE=unsigned SKIP_NOTARIZE=1 ./scripts/build_macos.sh
 
 # 4) Build the iOS app + upload to TestFlight
 APPLE_ID=you@apple.com APPLE_PASSWORD=app-specific-pw \
@@ -77,9 +81,9 @@ The window loads `https://webui.thox.ai` and persists the session cookie via `WK
 
 ## Behavior
 
-- **Persistent session** — `WKWebViewConfiguration.websiteDataStore = .default()`. Login cookies survive quit/relaunch.
-- **In-app policy** — `decidePolicyFor navigationAction`: if `host == webui.thox.ai` keep it in the WKWebView; otherwise open in the system browser (`NSWorkspace` on macOS, `UIApplication.open` on iOS) and cancel the in-app navigation.
-- **Off-domain target=_blank** — `webView(_:createWebViewWith:for:windowFeatures:)` opens in the system browser instead of spawning a new window.
+- **Persistent session with explicit purge** — `WKWebViewConfiguration.websiteDataStore = .default()` keeps login data across relaunch. **Sign Out** requires confirmation, clears all WebKit website data in the app container, reports clearing/success/failure state, and reloads the canonical URL after success. This clears local session material; server-side token revocation is not yet verified.
+- **Strict in-app policy** — only credential-free `https://webui.thox.ai` URLs on the default HTTPS port are allowed in the WebView. Host suffixes, HTTP, custom schemes, embedded credentials, and non-default ports are never allowed in-app.
+- **Safe external navigation** — credential-free, default-port HTTPS links open in the system browser only for an explicit `.linkActivated` action. Automatic redirects and script-driven off-domain navigations are cancelled. Allowed `target=_blank` links stay in the current WebView.
 - **Loading state** — branded overlay (THOX emerald spinner + "Loading webui.thox.ai…") until `didFinish` fires.
 - **Error state** — branded card with wifi-exclamation icon, error message, and a Retry button. Never a white screen — `didFail` / `didFailProvisionalNavigation` always route to the overlay.
 - **Dark-mode-first** — `preferredColorScheme(.dark)` on both platforms + macOS `NSApp.appearance = .darkAqua` set on `applicationDidFinishLaunching`.
@@ -89,11 +93,13 @@ The window loads `https://webui.thox.ai` and persists the session cookie via `WK
 ### macOS
 
 - Team: `DVJ6Z5343U` (THOX AI LLC)
-- Code signing: Automatic (`CODE_SIGN_STYLE=Automatic`)
+- Release code signing: `Developer ID Application` with hardened runtime. The script rejects a release app carrying `com.apple.security.get-task-allow=true`.
 - App Sandbox: enabled (`com.apple.security.app-sandbox=true`)
 - Hardened runtime: enabled
 - Network client: enabled (`com.apple.security.network.client=true`)
-- Notarization: skipped by default; `scripts/build_macos.sh` auto-notarizes when `APPLE_ID` + `APPLE_PASSWORD` are present.
+- Notarization: required by default through a `notarytool` Keychain profile named by `NOTARY_PROFILE`; credentials are never passed on the command line or stored in the repository.
+- Packaging order: notarize/staple app → stage app → create/sign DMG → notarize/staple DMG → validate the final mounted app and DMG with `codesign`, `stapler`, and `spctl`.
+- Local-only modes: `SIGNING_MODE=unsigned SKIP_NOTARIZE=1` or `SIGNING_MODE=adhoc SKIP_NOTARIZE=1`. These produce a checksum and verify DMG integrity but intentionally skip trust claims.
 - Output DMG: `build/macos/ThoxWarRoom-Release-arm64.dmg`
 
 ### iOS
@@ -103,7 +109,8 @@ The window loads `https://webui.thox.ai` and persists the session cookie via `WK
 - Bundle id: `ai.thox.warroom` (iPhone only, `TARGETED_DEVICE_FAMILY=1`)
 - Minimum OS: iOS 17
 - Upload: `xcrun altool --upload-app --type ios` (App Store Connect API key preferred, see `.env.example`)
-- API key: `TKYHH5J4C3` / Issuer `c97d7004-992d-49d4-b2a2-bcab1e090187`
+- API-key variables: `ASC_API_KEY_ID`, `ASC_API_ISSUER_ID`, and `ASC_API_KEY_P8`. The `.p8` stays outside the repository and is passed directly to Xcode provisioning and `altool`; neither it nor the locally generated JWT is logged.
+- Credential-only check: `source .env && VALIDATE_CREDENTIALS_ONLY=1 ./scripts/build_ios.sh`
 
 ## Tests
 
@@ -116,16 +123,19 @@ xcodebuild \
     test
 ```
 
-8 unit tests cover:
+12 unit tests cover:
 
 - Base URL is `https://webui.thox.ai`
-- Off-domain hosts (`github.com`, `accounts.google.com`, `example.com`) → external
-- `webui.thox.ai` and subpaths → in-app
+- User-activated safe HTTPS off-domain URLs → external
+- Automatic/scripted off-domain URLs → cancelled
+- Unsafe schemes, credentials, ports, and missing URLs → cancelled
+- Exact `webui.thox.ai` HTTPS origin and subpaths → in-app
 - Initial state is `.idle`
 - `didStart` / `didFinish` / `didFail` transitions
 - Sticky error state (subsequent `didFinish` doesn't clobber a `.error`)
 - Reload lifecycle (`isReloadPending` flips and acknowledges)
 - `resetForRetry` arms a reload and lands in `.loading`
+- Persistent-session clearing success/failure state, canonical reload, and non-sensitive errors
 
 ## Design system
 
@@ -147,10 +157,11 @@ The app icon is a THOX emerald rounded square with a stylized "chip" mark (3 dar
 1. Verify toolchain (`xcodebuild`, `xcrun`, `xcodegen`, `python3`, `iconutil`)
 2. `xcodegen generate`
 3. `python3 scripts/gen_appiconset.py`
-4. Build for testing
-5. Run macOS unit tests
-6. Signed macOS build + DMG
-7. iOS archive + TestFlight upload
+4. `python3 scripts/validate_appiconsets.py`
+5. Build for testing
+6. Run macOS unit tests
+7. Signed macOS build + DMG
+8. iOS archive + TestFlight upload
 
 Override via env vars: `SKIP_IOS_BUILD=1`, `SKIP_MACOS_BUILD=1`, `SKIP_NOTARIZE=1`, `SKIP_UPLOAD=1`.
 

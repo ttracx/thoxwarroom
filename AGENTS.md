@@ -7,7 +7,7 @@ Native SwiftUI wrapper for [webui.thox.ai](https://webui.thox.ai).
 ```bash
 xcodegen generate
 ./scripts/ci.sh           # local CI: regenerate, build, test
-./scripts/build_macos.sh  # signed .app + arm64 .dmg
+./scripts/build_macos.sh  # Developer ID signed + notarized + stapled arm64 .dmg
 ./scripts/build_ios.sh    # archive + TestFlight upload
 ```
 
@@ -21,7 +21,7 @@ xcodegen generate
 - Branded overlay (spinner + error/retry) over the WKWebView — never a white screen
 - Apple Team `DVJ6Z5343U` (THOX AI LLC), bundle id `ai.thox.warroom`
 - App Sandbox + Hardened Runtime enabled on macOS
-- Code signing: Automatic
+- Release code signing: Developer ID Application; local CI uses explicit unsigned mode
 
 ## Layout
 

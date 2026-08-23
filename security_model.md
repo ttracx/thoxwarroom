@@ -31,6 +31,23 @@ Credentials, session cookies, prompts, messages, documents, embeddings, model ou
 | Sensitive diagnostic logs | Structured event allowlist, redaction tests, user-controlled export |
 | Incompatible source reuse | License inventory and owner/legal gate before using GPL-derived implementation in MIT code |
 
+## Temporary compatibility-shell boundary
+
+The v4.2 compatibility shell connects only to `https://webui.thox.ai` and is not
+the target local-first data plane. In-app navigation requires that exact HTTPS
+host, no URL credentials, and the default HTTPS port. Off-domain URLs open in
+the system browser only after a user activates an HTTPS link; redirects,
+scripts, custom schemes, insecure HTTP, embedded credentials, and non-default
+ports are cancelled. This allowlist is intentionally narrow and must not be
+expanded implicitly for authentication or convenience.
+
+The shell uses the app's persistent `WKWebsiteDataStore.default()` so web login
+can survive relaunch. Its confirmed **Sign Out & Clear Session** control removes
+all WebKit website data owned by this app container, exposes clearing/success/
+failure state, and reloads the canonical landing URL only after removal
+completes. It does not claim server-side token revocation; physical-device and
+packaged-app authentication/sign-out verification remains a release gate.
+
 ## Authentication and authorization
 
 - Store tokens, keys, and sensitive session material in Keychain with the narrowest practical accessibility class.
@@ -54,5 +71,5 @@ Record authentication outcomes, workspace/profile changes, Hermes approvals/deni
 - The current app is hosted-endpoint-only and uses the default persistent website data store.
 - Navigation policy checks only the host.
 - There is no explicit local audit store, RBAC, workspace isolation, privacy manifest, or verified deletion workflow.
-- Signing, notarization, TestFlight, and clean-device behavior are not yet proven.
+- The macOS release script now requires Developer ID Application signing, rejects `get-task-allow`, uses a Keychain-backed notary profile, staples before final staging, and validates the exact final DMG and mounted app. A live signed/notarized run and clean-device behavior are still not proven. TestFlight is also unproven.
 - The published v4.2 macOS app is a development-signed preview rejected by Gatekeeper, not a production distribution.

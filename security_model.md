@@ -71,5 +71,5 @@ Record authentication outcomes, workspace/profile changes, Hermes approvals/deni
 - The current app is hosted-endpoint-only and uses the default persistent website data store.
 - Navigation policy checks only the host.
 - There is no explicit local audit store, RBAC, workspace isolation, privacy manifest, or verified deletion workflow.
-- The macOS release script now requires Developer ID Application signing, rejects `get-task-allow`, uses a Keychain-backed notary profile, staples before final staging, and validates the exact final DMG and mounted app. A live signed/notarized run and clean-device behavior are still not proven. TestFlight is also unproven.
+- The macOS release script now requires Developer ID Application signing, rejects `get-task-allow`, uses a Keychain-backed notary profile, staples before final staging, and validates the exact final DMG and mounted app. A live signed/notarized run and clean-device behavior are still not proven. The iOS archive/export is Apple Distribution signed and provisioned for `DVJ6Z5343U.ai.thox.warroom`; upload remains blocked because App Store Connect has no app record for the existing bundle ID.
 - The published v4.2 macOS app is a development-signed preview rejected by Gatekeeper, not a production distribution.

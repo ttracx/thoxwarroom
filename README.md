@@ -6,6 +6,8 @@ ThoxWarRoom is a thin, branded shell that loads the THOX Open WebUI in a persist
 
 > **Current scope:** v4.2 is a compatibility shell, not yet the full native War Room product that existed in the v4.1 Flutter history. See the [Hermes completion audit](HERMES_COMPLETION_AUDIT.md), [MVP catalog](mvp_catalog.md), and [multi-team development queue](development_queue.md) for the evidence-based native iOS/macOS delivery plan.
 
+Current build, signing, upload, and blocker evidence is recorded in [release_evidence.md](release_evidence.md).
+
 ## Targets
 
 | Target | Platform | Min OS | UI framework | Web framework |

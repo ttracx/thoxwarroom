@@ -58,7 +58,7 @@ The audit does **not** claim these historical modules were production-ready. The
 9. **Documentation gap:** the current README describes the shell accurately but the former privacy, security, building, contribution, and architecture documents were removed.
 10. **Identity/release risk:** one bundle identifier is shared across targets; App Store Connect records, provisioning profiles, entitlements, privacy manifests, and distribution identities require owner-side verification.
 11. **License decision:** the historical Conduit-derived application is GPL-3.0 while current native `main` is MIT. Legacy source must not be copied into the MIT target without an explicit owner/legal decision; the default plan is a clean-room native implementation from independently captured service contracts and requirements.
-12. **iOS asset/release gap:** the generated icon catalog produces distribution warnings, and the upload script's documented App Store Connect variable names do not match the names it reads. The `.p8` path is not actually installed or passed to the upload tool.
+12. **iOS distribution state:** the icon catalog and App Store Connect credential plumbing were repaired on 2026-08-23. A distribution-signed/provisioned IPA was exported and verified, but upload is blocked until an App Store Connect app record is created for the already-registered `ai.thox.warroom` bundle ID.
 
 ## Source references
 

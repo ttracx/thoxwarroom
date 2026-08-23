@@ -1,5 +1,14 @@
 # Release Evidence
 
+## 2026-08-23 final application-source Apple artifacts
+
+- Application source and reconciled product documentation: pushed `main` at `73a5fff` before this evidence-only append.
+- iOS archive/export: `build/ios-73a5fff/ThoxWarRoom.xcarchive` and `build/ios-73a5fff/export/ThoxWarRoom.ipa`. Apple Distribution signature, bundle `ai.thox.warroom`, TeamIdentifier `DVJ6Z5343U`, strict deep verification, App Store provisioning, `beta-reports-active=true`, and `get-task-allow=false` were verified. IPA SHA-256: `747163f9fb4dac3e2097b6b06e4b7816899851ce59619ae9bc9b225aa4a9cd22`.
+- Native macOS App Store archive/export: `build/macos-appstore-73a5fff/ThoxWarRoom.xcarchive` and `build/macos-appstore-73a5fff/export/ThoxWarRoom.pkg`. The embedded app is Apple Distribution signed for team `DVJ6Z5343U`; strict deep verification passed; app sandbox, user-selected read-only files, and network client are present; `get-task-allow` is absent. The installer uses the THOX `3rd Party Mac Developer Installer` certificate. Package SHA-256: `3a679fe3526bb1a030ee9924daecaf0ef05585f339814ef11d91b179bcfa4f9b`.
+- Both artifact lanes generated the same revision-bound SPDX file, SHA-256 `6bbdef163ce0d28ce5109daa49e6529e00f425ff59f96431dc9ffbe47c7f531f`.
+- Final iOS and macOS uploads were attempted with the externally supplied THOX API key. Apple rejected both before transfer because no matching app record exists: platform `IOS` and platform `MAC_OS` each returned `Cannot determine the Apple ID from Bundle ID 'ai.thox.warroom' ... (19)` followed by `ExitFailure (31)`.
+- Required owner action remains: authenticate an Account Holder/Admin/App Manager website session, confirm agreements, create the shared iOS/macOS app record, and then retry these exact artifacts. Upload, processing, TestFlight installation, and physical-device behavior remain unproven.
+
 ## 2026-08-23 persistence, browser, SBOM, and macOS TestFlight wave
 
 - Source implementation through `5c487fe`: cooperative cross-process audit transaction serialization (`c3a2947`), resumable Keychain deletion journal (`c5a6810`), confined local workspace browser (`5c487fe`), deterministic SPDX generation (`b768b5d`/`eea9e2d`), and macOS App Store/TestFlight tooling (`0047611`).

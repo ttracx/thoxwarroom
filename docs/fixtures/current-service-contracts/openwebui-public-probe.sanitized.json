@@ -1,0 +1,64 @@
+{
+  "fixture_kind": "sanitized_public_unauthenticated_probe",
+  "captured_at": "2026-08-23",
+  "origin": "https://webui.thox.ai",
+  "redactions": [
+    "deployment-specific identifier",
+    "oauth configuration"
+  ],
+  "responses": {
+    "GET /health": {
+      "status": 200,
+      "content_type": "text/plain; charset=utf-8",
+      "body": "OK"
+    },
+    "GET /api/version": {
+      "status": 200,
+      "content_type": "application/json",
+      "body": {
+        "version": "0.11.0"
+      }
+    },
+    "GET /api/config": {
+      "status": 200,
+      "content_type": "application/json",
+      "body": {
+        "status": true,
+        "name": "THOX (Open WebUI)",
+        "version": "0.11.0",
+        "default_locale": "",
+        "features": {
+          "auth": true,
+          "auth_trusted_header": false,
+          "enable_signup_password_confirmation": false,
+          "enable_ldap": false,
+          "enable_signup": false,
+          "enable_login_form": true,
+          "enable_websocket": true
+        }
+      }
+    },
+    "GET /api/models": {
+      "status": 401,
+      "content_type": "application/json",
+      "body": {
+        "detail": "Not authenticated"
+      }
+    },
+    "GET /api/v1/chats/": {
+      "status": 401,
+      "content_type": "application/json",
+      "body": {
+        "detail": "Not authenticated"
+      }
+    },
+    "POST /api/chat/completions": {
+      "status": 401,
+      "content_type": "application/json",
+      "request": {},
+      "body": {
+        "detail": "Not authenticated"
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "fixture_kind": "sanitized_authenticated_openwebui_chat_contract",
+  "capture": {
+    "status": "not_captured",
+    "captured_at": null,
+    "origin": "https://webui.thox.ai",
+    "server_version": "0.11.0",
+    "account_boundary": "dedicated_non_production_required",
+    "synthetic_prompt": false,
+    "retained_sensitive_values": false
+  },
+  "requirements": [
+    { "requirement": "credential_lifecycle", "status": "missing", "artifact_ids": [] },
+    { "requirement": "non_streaming_request", "status": "missing", "artifact_ids": [] },
+    { "requirement": "non_streaming_response", "status": "missing", "artifact_ids": [] },
+    { "requirement": "streaming_transport", "status": "missing", "artifact_ids": [] },
+    { "requirement": "streaming_frames", "status": "missing", "artifact_ids": [] },
+    { "requirement": "cancellation", "status": "missing", "artifact_ids": [] },
+    { "requirement": "error_responses", "status": "missing", "artifact_ids": [] },
+    { "requirement": "durable_history", "status": "missing", "artifact_ids": [] },
+    { "requirement": "source_citations", "status": "missing", "artifact_ids": [] }
+  ],
+  "artifacts": []
+}

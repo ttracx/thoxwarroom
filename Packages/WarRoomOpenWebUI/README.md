@@ -14,6 +14,7 @@ through the caller-supplied `ProviderTransport` seam.
 - response-size checks before text or JSON decoding
 - cancellation propagation
 - an executable, fail-closed native-chat evidence gate
+- an offline authenticated-contract evidence manifest auditor/qualifier
 - fully offline transport-double tests
 
 `OpenWebUIProvider.descriptor` advertises only `modelCatalog`. The package does
@@ -46,6 +47,26 @@ or unauthenticated evidence cannot accidentally enable native chat. The
 sanitized `native-chat-boundary` fixture verifies the observed `401` route
 boundaries while explicitly retaining no credential, prompt, response, or user
 data.
+
+The checked-in `Evidence/native-chat/current.manifest.json` is the executable
+record of that boundary. It deliberately marks all authenticated elements
+missing. Audit it without making a network request:
+
+```bash
+swift run --package-path Packages/WarRoomOpenWebUI \
+  openwebui-contract-evidence audit \
+  Packages/WarRoomOpenWebUI/Evidence/native-chat/current.manifest.json
+```
+
+After one sanctioned capture session with a dedicated non-production account
+and synthetic prompt, place only sanitized text artifacts beside the manifest,
+record their byte counts and SHA-256 digests, mark the supported requirements
+`captured`, then run the same command with `qualify`. Qualification fails until
+all nine requirements are present. The validator rejects absolute/traversing
+paths, symlinks, non-text data, unsupported media types, oversized artifacts,
+hash/size mismatches, incomplete requirement sets, common live credential
+forms, and any manifest that claims sensitive values were retained. It never
+contacts the service and does not infer any route or payload shape.
 
 Credentials are opaque `ProviderCredential` values and are forwarded only to
 the protected model request. Public health, version, and configuration probes

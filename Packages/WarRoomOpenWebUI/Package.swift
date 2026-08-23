@@ -10,6 +10,10 @@ let package = Package(
     ],
     products: [
         .library(name: "WarRoomOpenWebUI", targets: ["WarRoomOpenWebUI"]),
+        .executable(
+            name: "openwebui-contract-evidence",
+            targets: ["OpenWebUIContractEvidenceTool"]
+        ),
     ],
     dependencies: [
         .package(path: "../WarRoomCore"),
@@ -19,9 +23,20 @@ let package = Package(
             name: "WarRoomOpenWebUI",
             dependencies: ["WarRoomCore"]
         ),
+        .target(
+            name: "OpenWebUIContractEvidence"
+        ),
+        .executableTarget(
+            name: "OpenWebUIContractEvidenceTool",
+            dependencies: ["OpenWebUIContractEvidence"]
+        ),
         .testTarget(
             name: "WarRoomOpenWebUITests",
-            dependencies: ["WarRoomOpenWebUI", "WarRoomCore"],
+            dependencies: [
+                "WarRoomOpenWebUI",
+                "WarRoomCore",
+                "OpenWebUIContractEvidence",
+            ],
             resources: [.process("Fixtures")]
         ),
     ],

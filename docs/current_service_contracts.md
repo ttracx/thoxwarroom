@@ -144,6 +144,27 @@ Until that capture exists, `/api/chat/completions` and `/api/v1/chats/` are
 route-and-authentication-boundary evidence only and must not be promoted to a
 typed native chat contract.
 
+The package now makes this evidence gate executable without adding a provider
+route or issuing a network request. The checked-in
+`Packages/WarRoomOpenWebUI/Evidence/native-chat/current.manifest.json` records
+all nine authenticated elements as missing. Run:
+
+```bash
+swift run --package-path Packages/WarRoomOpenWebUI \
+  openwebui-contract-evidence audit \
+  Packages/WarRoomOpenWebUI/Evidence/native-chat/current.manifest.json
+```
+
+One sanctioned capture session must cover the nine listed elements using a
+dedicated non-production account and synthetic prompt. Sanitized text artifacts
+are then referenced by relative path, exact byte count, and SHA-256 digest in
+the manifest; `qualify` replaces `audit` for the readiness check. Qualification
+is fail-closed on missing elements, unsafe paths or symlinks, size/digest drift,
+binary content, unsupported media types, and common unredacted credential
+forms. Passing this tooling establishes evidence-bundle integrity only; a
+reviewed typed implementation and its package tests are still required before
+capabilities can be enabled.
+
 ### Native Open WebUI adapter contract
 
 The first native adapter should support only the following until an

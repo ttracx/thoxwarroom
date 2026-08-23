@@ -1,0 +1,27 @@
+{
+  "mesh_id": "00000000-0000-0000-0000-000000000100",
+  "nodes": [
+    {
+      "id": "00000000-0000-0000-0000-000000000101",
+      "display_name": "Synthetic Mac",
+      "role": "client",
+      "platform": "macos",
+      "last_seen": "2026-08-23T12:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000102",
+      "display_name": "Synthetic iPhone",
+      "role": "client",
+      "platform": "ios",
+      "last_seen": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "00000000-0000-0000-0000-000000000101",
+      "target": "00000000-0000-0000-0000-000000000102",
+      "rtt_ms": 7.5,
+      "tunnel_active": true
+    }
+  ]
+}

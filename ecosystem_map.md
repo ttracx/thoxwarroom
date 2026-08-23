@@ -66,4 +66,3 @@ The current v4.2 app is a shared SwiftUI shell that embeds `https://webui.thox.a
 - Provider-specific DTOs terminate at adapters; domain models remain shared and testable.
 - All high-impact Hermes actions carry request, decision, actor, time, result, and correlation identifiers.
 - Platform features depend on shared use cases, not directly on transport clients.
-

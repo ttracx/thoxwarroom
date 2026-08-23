@@ -10,6 +10,10 @@ let package = Package(
     ],
     products: [
         .library(name: "WarRoomMesh", targets: ["WarRoomMesh"]),
+        .executable(
+            name: "mesh-contract-evidence",
+            targets: ["MeshContractEvidenceTool"]
+        ),
     ],
     dependencies: [
         .package(path: "../WarRoomCore"),
@@ -19,9 +23,14 @@ let package = Package(
             name: "WarRoomMesh",
             dependencies: ["WarRoomCore"]
         ),
+        .target(name: "MeshContractEvidence"),
+        .executableTarget(
+            name: "MeshContractEvidenceTool",
+            dependencies: ["MeshContractEvidence"]
+        ),
         .testTarget(
             name: "WarRoomMeshTests",
-            dependencies: ["WarRoomMesh", "WarRoomCore"],
+            dependencies: ["WarRoomMesh", "WarRoomCore", "MeshContractEvidence"],
             resources: [.process("Fixtures")]
         ),
     ],

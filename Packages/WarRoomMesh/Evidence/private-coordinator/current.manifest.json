@@ -1,0 +1,88 @@
+{
+  "artifacts" : [
+
+  ],
+  "capture" : {
+    "environment_boundary" : "dedicated_non_production_required",
+    "origin" : "https://dedicated-mesh-nonproduction.invalid",
+    "retained_sensitive_values" : false,
+    "sanctioned_test_identity" : false,
+    "sanctioned_test_mesh" : false,
+    "service_version" : "not_captured",
+    "status" : "not_captured"
+  },
+  "fixture_kind" : "sanitized_authenticated_mesh_read_only_contract",
+  "requirements" : [
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "credential_user_bearer_boundary",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "test_mesh_identity_membership",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "devices_response",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "topology_response",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "events_response",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "partial_freshness_provenance",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "authentication_errors",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "authorization_errors",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "cancellation_behavior",
+      "status" : "missing"
+    },
+    {
+      "artifact_ids" : [
+
+      ],
+      "requirement" : "network_error_behavior",
+      "status" : "missing"
+    }
+  ],
+  "schema_version" : 1
+}

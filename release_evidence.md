@@ -35,7 +35,7 @@ The unsigned DMG is build evidence only and is not a distributable release.
 
 ## 2026-08-23 native CI activation
 
-- Runs `32638587436` and `32638619138` each failed before executing any step.
+- Runs `32638587436`, `32638619138`, `32638691508`, and post-foundation run `32639512911` each failed before executing any step.
 - GitHub's check annotation states: `The job was not started because your account is locked due to a billing issue.`
-- The intended `macos-26` runner was retained because neither job reached runner selection or source execution.
-- Local `./scripts/bootstrap.sh` passed the same secret-free lane, but GitHub billing must be unlocked and a remote run must pass before WR-010 is considered implemented remotely.
+- The intended `macos-26` runner was retained because none of the jobs reached runner selection or source execution.
+- Local `./scripts/bootstrap.sh` passed the same secret-free lane at the workspace-foundation revision: 16 Shared Core tests, 21 integrated macOS tests, deterministic generation/assets, and a generic iOS Simulator test build. GitHub billing must be unlocked and a remote run must pass before WR-010 is considered implemented remotely.

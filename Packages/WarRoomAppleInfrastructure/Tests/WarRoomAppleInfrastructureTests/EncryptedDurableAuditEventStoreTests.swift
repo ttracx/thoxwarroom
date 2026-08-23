@@ -9,7 +9,11 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
         let records = AuditMemoryEncryptedRecordStore()
         let keys = AuditMemoryMasterKeyVault()
         let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
-        let store = EncryptedDurableAuditEventStore(dataStore: records, codec: codec)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: AuditMemoryHeadAnchorVault()
+        )
         let firstWorkspace = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
         let secondWorkspace = workspace("BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")
         let first = try event(
@@ -129,7 +133,11 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
         let records = AuditMemoryEncryptedRecordStore()
         let keys = AuditMemoryMasterKeyVault()
         let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
-        let store = EncryptedDurableAuditEventStore(dataStore: records, codec: codec)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: AuditMemoryHeadAnchorVault()
+        )
         let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
         try await store.append(try event(
             id: "10000000-0000-0000-0000-000000000001",
@@ -209,7 +217,11 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
         let records = AuditMemoryEncryptedRecordStore()
         let keys = AuditMemoryMasterKeyVault()
         let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
-        let store = EncryptedDurableAuditEventStore(dataStore: records, codec: codec)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: AuditMemoryHeadAnchorVault()
+        )
         let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
         try await store.append(try event(
             id: "10000000-0000-0000-0000-000000000001",
@@ -245,6 +257,201 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
         await assertCorrupt(store: store, workspaceID: workspaceID)
     }
 
+    func testExistingCiphertextWithoutAnchorFailsClosed() async throws {
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        try await store.append(try event(
+            id: "10000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: 100,
+            action: "first"
+        ))
+        await anchors.removeAnchor(for: workspaceID)
+
+        await assertStoreError(.corruptAnchor, store: store, workspaceID: workspaceID)
+    }
+
+    func testOlderAuthenticatedCiphertextBehindAnchorIsRejectedAsRollback() async throws {
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        try await store.append(try event(
+            id: "10000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: 100,
+            action: "first"
+        ))
+        let storedOlder = await records.storedRecord(
+            id: EncryptedDurableAuditEventStore.recordID,
+            workspaceID: workspaceID
+        )
+        let older = try XCTUnwrap(storedOlder)
+        try await store.append(try event(
+            id: "10000000-0000-0000-0000-000000000002",
+            workspaceID: workspaceID,
+            occurredAt: 200,
+            action: "second"
+        ))
+
+        await records.replace(older)
+        await assertStoreError(.rollbackDetected, store: store, workspaceID: workspaceID)
+    }
+
+    func testAuthenticatedLedgerWithMismatchedAnchoredPrefixIsRejected() async throws {
+        let primaryRecords = AuditMemoryEncryptedRecordStore()
+        let alternateRecords = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let primaryAnchors = AuditMemoryHeadAnchorVault()
+        let alternateAnchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let primary = EncryptedDurableAuditEventStore(
+            dataStore: primaryRecords,
+            codec: codec,
+            anchorVault: primaryAnchors
+        )
+        let alternate = EncryptedDurableAuditEventStore(
+            dataStore: alternateRecords,
+            codec: codec,
+            anchorVault: alternateAnchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        try await primary.append(try event(
+            id: "10000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: 100,
+            action: "anchored-primary"
+        ))
+        try await alternate.append(try event(
+            id: "20000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: 100,
+            action: "divergent-first"
+        ))
+        try await alternate.append(try event(
+            id: "20000000-0000-0000-0000-000000000002",
+            workspaceID: workspaceID,
+            occurredAt: 200,
+            action: "divergent-second"
+        ))
+        let storedAlternate = await alternateRecords.storedRecord(
+            id: EncryptedDurableAuditEventStore.recordID,
+            workspaceID: workspaceID
+        )
+        await primaryRecords.replace(try XCTUnwrap(storedAlternate))
+
+        await assertStoreError(.rollbackDetected, store: primary, workspaceID: workspaceID)
+    }
+
+    func testEmptyAnchorExistsBeforeFirstCiphertextSave() async throws {
+        let anchors = AuditMemoryHeadAnchorVault()
+        let records = AuditMemoryEncryptedRecordStore(anchorObservedAtSave: anchors)
+        let keys = AuditMemoryMasterKeyVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+
+        try await store.append(try event(
+            id: "10000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: 100,
+            action: "first"
+        ))
+
+        let observed = await records.anchorSeenAtFirstSave()
+        XCTAssertEqual(observed, .empty)
+    }
+
+    func testAuthenticatedLedgerAheadOfAnchorRecoversCrashAndAdvancesAnchor() async throws {
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        await anchors.failNextStore(with: .interactionNotAllowed)
+
+        do {
+            try await store.append(try event(
+                id: "10000000-0000-0000-0000-000000000001",
+                workspaceID: workspaceID,
+                occurredAt: 100,
+                action: "survived-crash"
+            ))
+            XCTFail("Expected simulated post-ciphertext anchor failure")
+        } catch {
+            XCTAssertEqual(error as? EncryptedDurableAuditStoreError, .anchorUnavailable)
+            XCTAssertEqual(String(describing: error), "Encrypted audit history is unavailable.")
+        }
+        let beforeRecovery = await anchors.storedAnchor(for: workspaceID)
+        XCTAssertEqual(beforeRecovery, .empty)
+
+        let recoveredStore = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let page = try await recoveredStore.events(matching: AuditEventQuery(
+            workspaceID: workspaceID
+        ))
+        XCTAssertEqual(page.events.map(\.event.action), ["survived-crash"])
+        let storedRecoveredAnchor = await anchors.storedAnchor(for: workspaceID)
+        let recoveredAnchor = try XCTUnwrap(storedRecoveredAnchor)
+        XCTAssertEqual(recoveredAnchor.entryCount, 1)
+        XCTAssertNotEqual(recoveredAnchor.headDigest, StoredAuditHeadAnchor.empty.headDigest)
+    }
+
+    func testAnchorReadFailureFailsClosedWithoutLeakingKeychainDetails() async throws {
+        let records = AuditMemoryEncryptedRecordStore()
+        let keys = AuditMemoryMasterKeyVault()
+        let anchors = AuditMemoryHeadAnchorVault()
+        let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
+        let store = EncryptedDurableAuditEventStore(
+            dataStore: records,
+            codec: codec,
+            anchorVault: anchors
+        )
+        let workspaceID = workspace("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        try await store.append(try event(
+            id: "10000000-0000-0000-0000-000000000001",
+            workspaceID: workspaceID,
+            occurredAt: 100,
+            action: "first"
+        ))
+        await anchors.failReads(with: .authenticationFailed)
+
+        do {
+            _ = try await store.events(matching: AuditEventQuery(workspaceID: workspaceID))
+            XCTFail("Expected fail-closed anchor read")
+        } catch {
+            XCTAssertEqual(error as? EncryptedDurableAuditStoreError, .anchorUnavailable)
+            XCTAssertEqual(String(describing: error), "Encrypted audit history is unavailable.")
+            XCTAssertEqual(String(reflecting: error), "EncryptedDurableAuditStoreError(<redacted>)")
+        }
+    }
+
     private func makeStore() -> (
         EncryptedDurableAuditEventStore,
         AuditMemoryEncryptedRecordStore,
@@ -254,7 +461,11 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
         let keys = AuditMemoryMasterKeyVault()
         let codec = EncryptedWorkspaceRecordCodec(keyVault: keys)
         return (
-            EncryptedDurableAuditEventStore(dataStore: records, codec: codec),
+            EncryptedDurableAuditEventStore(
+                dataStore: records,
+                codec: codec,
+                anchorVault: AuditMemoryHeadAnchorVault()
+            ),
             records,
             keys
         )
@@ -303,6 +514,26 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
         }
     }
 
+    private func assertStoreError(
+        _ expected: EncryptedDurableAuditStoreError,
+        store: EncryptedDurableAuditEventStore,
+        workspaceID: WorkspaceID,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        do {
+            _ = try await store.events(matching: AuditEventQuery(workspaceID: workspaceID))
+            XCTFail("Expected audit-store rejection", file: file, line: line)
+        } catch {
+            XCTAssertEqual(
+                error as? EncryptedDurableAuditStoreError,
+                expected,
+                file: file,
+                line: line
+            )
+        }
+    }
+
     private func copy(
         _ record: EncryptedWorkspaceRecord,
         ciphertext: Data
@@ -335,9 +566,61 @@ final class EncryptedDurableAuditEventStoreTests: XCTestCase {
     }
 }
 
+private actor AuditMemoryHeadAnchorVault: AuditHeadAnchorProviding {
+    private var values: [WorkspaceID: StoredAuditHeadAnchor] = [:]
+    private var nextStoreError: AuditHeadAnchorVaultError?
+    private var readError: AuditHeadAnchorVaultError?
+
+    func anchor(for workspaceID: WorkspaceID) throws -> StoredAuditHeadAnchor? {
+        if let readError { throw readError }
+        return values[workspaceID]
+    }
+
+    func initializeEmptyAnchor(for workspaceID: WorkspaceID) throws
+        -> StoredAuditHeadAnchor {
+        if let readError { throw readError }
+        if let existing = values[workspaceID] { return existing }
+        values[workspaceID] = .empty
+        return .empty
+    }
+
+    func store(_ anchor: StoredAuditHeadAnchor, for workspaceID: WorkspaceID) throws {
+        if let nextStoreError {
+            self.nextStoreError = nil
+            throw nextStoreError
+        }
+        guard values[workspaceID] != nil else {
+            throw AuditHeadAnchorVaultError.missingAnchor
+        }
+        values[workspaceID] = anchor
+    }
+
+    func storedAnchor(for workspaceID: WorkspaceID) -> StoredAuditHeadAnchor? {
+        values[workspaceID]
+    }
+
+    func removeAnchor(for workspaceID: WorkspaceID) {
+        values[workspaceID] = nil
+    }
+
+    func failNextStore(with error: AuditHeadAnchorVaultError) {
+        nextStoreError = error
+    }
+
+    func failReads(with error: AuditHeadAnchorVaultError) {
+        readError = error
+    }
+}
+
 private actor AuditMemoryEncryptedRecordStore: EncryptedWorkspaceDataStore {
     private var values: [WorkspaceID: [EncryptedWorkspaceRecordID: EncryptedWorkspaceRecord]] = [:]
     private var saves: [WorkspaceID: Int] = [:]
+    private let anchorObservedAtSave: AuditMemoryHeadAnchorVault?
+    private var firstSaveAnchor: StoredAuditHeadAnchor?
+
+    init(anchorObservedAtSave: AuditMemoryHeadAnchorVault? = nil) {
+        self.anchorObservedAtSave = anchorObservedAtSave
+    }
 
     func record(
         id: EncryptedWorkspaceRecordID,
@@ -356,7 +639,10 @@ private actor AuditMemoryEncryptedRecordStore: EncryptedWorkspaceDataStore {
             .prefix(limit.rawValue))
     }
 
-    func save(_ record: EncryptedWorkspaceRecord) {
+    func save(_ record: EncryptedWorkspaceRecord) async {
+        if firstSaveAnchor == nil, let anchorObservedAtSave {
+            firstSaveAnchor = try? await anchorObservedAtSave.anchor(for: record.workspaceID)
+        }
         values[record.workspaceID, default: [:]][record.id] = record
         saves[record.workspaceID, default: 0] += 1
     }
@@ -378,6 +664,10 @@ private actor AuditMemoryEncryptedRecordStore: EncryptedWorkspaceDataStore {
 
     func saveCount(for workspaceID: WorkspaceID) -> Int {
         saves[workspaceID, default: 0]
+    }
+
+    func anchorSeenAtFirstSave() -> StoredAuditHeadAnchor? {
+        firstSaveAnchor
     }
 }
 

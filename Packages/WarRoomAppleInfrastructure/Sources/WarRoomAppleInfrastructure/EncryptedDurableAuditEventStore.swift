@@ -5,10 +5,13 @@ import WarRoomCore
 /// Redacted failures from encrypted durable audit persistence.
 public enum EncryptedDurableAuditStoreError: Error, Equatable, Sendable,
     CustomStringConvertible, CustomDebugStringConvertible {
+    case anchorUnavailable
     case conflictingEventIdentifier
+    case corruptAnchor
     case corruptLedger
     case invalidCursor
     case ledgerFull(limit: Int)
+    case rollbackDetected
     case storageUnavailable
 
     public var description: String { "Encrypted audit history is unavailable." }
@@ -19,8 +22,10 @@ public enum EncryptedDurableAuditStoreError: Error, Equatable, Sendable,
 ///
 /// Each workspace owns one atomically replaced AES-256-GCM record. Entries are also
 /// linked by SHA-256 digests so decoding rejects internal deletion, reordering, or
-/// substitution. This format does not detect replacement of the complete ledger by
-/// an older, otherwise valid ciphertext; that requires an external monotonic anchor.
+/// substitution. A separately protected Keychain head commits the entry count and
+/// chain digest to detect replacement by an older, otherwise valid ciphertext.
+/// Actor isolation serializes one store instance; this type does not claim a
+/// multi-process or cross-instance compare-and-swap boundary.
 public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
     static let schemaVersion = 1
     static let maximumEntries = 10_000
@@ -31,6 +36,7 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
 
     private let dataStore: any EncryptedWorkspaceDataStore
     private let codec: EncryptedWorkspaceRecordCodec
+    private let anchorVault: any AuditHeadAnchorProviding
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
@@ -38,16 +44,19 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
     public init() throws {
         dataStore = try EncryptedWorkspaceFileDataStore()
         codec = EncryptedWorkspaceRecordCodec()
+        anchorVault = KeychainAuditHeadAnchorVault()
         encoder = Self.makeEncoder()
         decoder = Self.makeDecoder()
     }
 
     init(
         dataStore: any EncryptedWorkspaceDataStore,
-        codec: EncryptedWorkspaceRecordCodec
+        codec: EncryptedWorkspaceRecordCodec,
+        anchorVault: any AuditHeadAnchorProviding
     ) {
         self.dataStore = dataStore
         self.codec = codec
+        self.anchorVault = anchorVault
         encoder = Self.makeEncoder()
         decoder = Self.makeDecoder()
     }
@@ -75,7 +84,12 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
         var ledger: StoredAuditLedger
         if let existingRecord {
             ledger = try await openLedger(existingRecord, workspaceID: validated.event.workspaceID)
+            try await reconcileAnchor(for: ledger, requiresExistingAnchor: true)
         } else {
+            let anchor = try await initializeAnchor(for: validated.event.workspaceID)
+            guard anchor.entryCount == 0 else {
+                throw EncryptedDurableAuditStoreError.rollbackDetected
+            }
             do {
                 // Provisioning is safe only after the workspace-scoped record lookup
                 // proved that no audit ciphertext exists.
@@ -139,8 +153,16 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
                 updatedAt: updatedAt
             )
             try await dataStore.save(record)
+            // The encrypted record is durable before its independently protected
+            // commitment advances. A crash in between is recovered on next open.
+            try await anchorVault.store(
+                try anchor(for: ledger),
+                for: ledger.workspaceID
+            )
         } catch let error as EncryptedDurableAuditStoreError {
             throw error
+        } catch let error as AuditHeadAnchorVaultError {
+            throw mapAnchorError(error)
         } catch {
             throw EncryptedDurableAuditStoreError.storageUnavailable
         }
@@ -155,6 +177,10 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
             throw EncryptedDurableAuditStoreError.storageUnavailable
         }
         guard let record else {
+            let anchor = try await readAnchor(for: query.workspaceID)
+            guard anchor == nil || anchor == .empty else {
+                throw EncryptedDurableAuditStoreError.rollbackDetected
+            }
             if query.after != nil {
                 throw EncryptedDurableAuditStoreError.invalidCursor
             }
@@ -162,6 +188,7 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
         }
 
         let ledger = try await openLedger(record, workspaceID: query.workspaceID)
+        try await reconcileAnchor(for: ledger, requiresExistingAnchor: true)
         let start = try cursorOffset(query.after, in: ledger)
         var result: [PersistableAuditEvent] = []
         var index = start
@@ -190,6 +217,89 @@ public actor EncryptedDurableAuditEventStore: DurableAuditEventStore {
             events: result,
             nextCursor: nextCursor
         )
+    }
+
+    private func initializeAnchor(for workspaceID: WorkspaceID) async throws
+        -> StoredAuditHeadAnchor {
+        do {
+            return try await anchorVault.initializeEmptyAnchor(for: workspaceID)
+        } catch let error as AuditHeadAnchorVaultError {
+            throw mapAnchorError(error)
+        } catch {
+            throw EncryptedDurableAuditStoreError.anchorUnavailable
+        }
+    }
+
+    private func readAnchor(for workspaceID: WorkspaceID) async throws
+        -> StoredAuditHeadAnchor? {
+        do {
+            return try await anchorVault.anchor(for: workspaceID)
+        } catch let error as AuditHeadAnchorVaultError {
+            throw mapAnchorError(error)
+        } catch {
+            throw EncryptedDurableAuditStoreError.anchorUnavailable
+        }
+    }
+
+    private func reconcileAnchor(
+        for ledger: StoredAuditLedger,
+        requiresExistingAnchor: Bool
+    ) async throws {
+        let stored = try await readAnchor(for: ledger.workspaceID)
+        guard let stored else {
+            if requiresExistingAnchor {
+                throw EncryptedDurableAuditStoreError.corruptAnchor
+            }
+            return
+        }
+        let ledgerCount = UInt64(ledger.entries.count)
+        guard ledgerCount >= stored.entryCount else {
+            throw EncryptedDurableAuditStoreError.rollbackDetected
+        }
+        if stored.entryCount == 0 {
+            guard stored.headDigest == StoredAuditHeadAnchor.empty.headDigest else {
+                throw EncryptedDurableAuditStoreError.corruptAnchor
+            }
+        } else {
+            let anchoredIndex = Int(stored.entryCount - 1)
+            guard ledger.entries[anchoredIndex].digest == stored.headDigest else {
+                throw EncryptedDurableAuditStoreError.rollbackDetected
+            }
+        }
+        guard ledgerCount > stored.entryCount else { return }
+
+        do {
+            try await anchorVault.store(
+                try anchor(for: ledger),
+                for: ledger.workspaceID
+            )
+        } catch let error as AuditHeadAnchorVaultError {
+            throw mapAnchorError(error)
+        } catch {
+            throw EncryptedDurableAuditStoreError.anchorUnavailable
+        }
+    }
+
+    private func anchor(for ledger: StoredAuditLedger) throws -> StoredAuditHeadAnchor {
+        let digest = ledger.entries.last?.digest ?? StoredAuditHeadAnchor.empty.headDigest
+        do {
+            return try StoredAuditHeadAnchor.validated(
+                entryCount: UInt64(ledger.entries.count),
+                headDigest: digest
+            )
+        } catch {
+            throw EncryptedDurableAuditStoreError.corruptLedger
+        }
+    }
+
+    private func mapAnchorError(_ error: AuditHeadAnchorVaultError)
+        -> EncryptedDurableAuditStoreError {
+        switch error {
+        case .invalidStoredAnchor, .missingAnchor:
+            return .corruptAnchor
+        case .interactionNotAllowed, .authenticationFailed, .unexpectedStatus:
+            return .anchorUnavailable
+        }
     }
 
     private func openLedger(

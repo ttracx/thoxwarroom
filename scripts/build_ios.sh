@@ -85,6 +85,9 @@ python3 scripts/validate_privacy_manifest.py App/PrivacyInfo.xcprivacy
 
 mkdir -p "$BUILD_DIR"
 
+echo "==> Generating source-revision SPDX SBOM"
+SBOM_OUTPUT="$BUILD_DIR/ThoxWarRoom.spdx.json" ./scripts/generate_sbom.sh
+
 echo "==> Archive ($BUILD_CONFIG)"
 xcodebuild \
     -project "$PROJECT_NAME.xcodeproj" \

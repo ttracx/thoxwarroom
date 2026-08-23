@@ -88,6 +88,15 @@ python3 scripts/validate_privacy_manifest.py App/PrivacyInfo.xcprivacy
 
 mkdir -p "$BUILD_DIR"
 
+echo "==> Generating source-revision SPDX SBOM"
+if [ "$SIGNING_MODE" = "developer-id" ]; then
+    SBOM_OUTPUT="$BUILD_DIR/ThoxWarRoom.spdx.json" ./scripts/generate_sbom.sh
+else
+    ALLOW_DIRTY_SBOM=1 \
+        SBOM_OUTPUT="$BUILD_DIR/ThoxWarRoom.spdx.json" \
+        ./scripts/generate_sbom.sh
+fi
+
 XCODE_SIGNING_ARGS=()
 case "$SIGNING_MODE" in
     developer-id)

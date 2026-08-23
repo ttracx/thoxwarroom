@@ -15,6 +15,12 @@ done
 XCODEGEN_BIN=$(./scripts/bootstrap_xcodegen.sh)
 echo "==> Using $($XCODEGEN_BIN --version) from the repository tool directory"
 
+echo "==> Validating deterministic release SBOM generation"
+python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+ALLOW_DIRTY_SBOM=1 \
+    SBOM_OUTPUT=build/unsigned-ci/ThoxWarRoom.spdx.json \
+    ./scripts/generate_sbom.sh
+
 echo "==> Generating the Xcode project and app icons"
 "$XCODEGEN_BIN" generate --quiet
 python3 scripts/gen_appiconset.py

@@ -33,7 +33,17 @@ echo "==> Testing standalone Swift packages with warnings as errors"
 for package_manifest in Packages/*/Package.swift; do
     package_dir="${package_manifest%/Package.swift}"
     echo "==> swift test: $package_dir"
-    swift test --package-path "$package_dir" -Xswiftc -warnings-as-errors
+    # Regenerate the test runner for the selected toolchain. Reusing a runner
+    # emitted by another Xcode can retain a link to Swift Testing even though
+    # this repository's packages contain XCTest suites only.
+    swift package --package-path "$package_dir" clean
+    # Every package currently uses XCTest. Disabling the unused Swift Testing
+    # runner avoids linking Xcode's Testing support library into these XCTest-only
+    # bundles, which is unavailable in some otherwise supported Xcode toolchains.
+    swift test \
+        --package-path "$package_dir" \
+        --disable-swift-testing \
+        -Xswiftc -warnings-as-errors
 done
 
 DERIVED_DATA="${CI_DERIVED_DATA:-build/unsigned-ci-derived}"

@@ -189,6 +189,29 @@ final class HermesRunReviewModelTests: XCTestCase {
         XCTAssertEqual(model.recentRuns.count, 1)
     }
 
+    func testRefreshAvailabilityRequiresValidIdentifierAndNoActiveOperation() async throws {
+        let runID = try XCTUnwrap(HermesRunID(rawValue: "opaque-refresh"))
+        let event = HermesRunEvent.reasoningAvailable(
+            HermesEventMetadata(runID: runID, timestamp: nil)
+        )
+        let model = HermesRunReviewModel(
+            service: HermesRunReviewServiceStub(mode: .pending(events: [event]))
+        )
+        XCTAssertFalse(model.canRefresh)
+        model.runIDInput = runID.rawValue
+        XCTAssertTrue(model.canRefresh)
+
+        model.startLoading()
+        await eventually {
+            if case .live = model.phase { return true }
+            return false
+        }
+        XCTAssertFalse(model.canRefresh)
+
+        model.cancelLoading()
+        XCTAssertTrue(model.canRefresh)
+    }
+
     private func eventually(
         _ condition: @escaping @MainActor () async -> Bool,
         file: StaticString = #filePath,

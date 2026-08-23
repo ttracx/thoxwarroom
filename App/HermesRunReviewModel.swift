@@ -131,6 +131,18 @@ final class HermesRunReviewModel: ObservableObject {
         startLoading()
     }
 
+    var canRefresh: Bool {
+        guard HermesRunID(rawValue: runIDInput.trimmingCharacters(in: .whitespacesAndNewlines)) != nil else {
+            return false
+        }
+        switch phase {
+        case .loading, .live:
+            return false
+        case .empty, .completed, .failed, .cancelled:
+            return true
+        }
+    }
+
     func waitForCurrentLoad() async {
         await loadTask?.value
     }

@@ -56,6 +56,7 @@ struct WorkspaceBrowserHost: View {
             Text(selectionError ?? "The selected root is unavailable.")
         }
         .onDisappear { model?.cancel() }
+        .workspaceReturnCommand(WorkspaceCommandAction("Return to Workspace", perform: onClose))
     }
 
     private var rootSelection: some View {
@@ -129,6 +130,12 @@ struct WorkspaceBrowserView: View {
         }
         .tint(ThoxTheme.accent)
         .accessibilityIdentifier("workspace-browser")
+        .workspaceRefreshCommand(browserRefreshCommand)
+    }
+
+    private var browserRefreshCommand: WorkspaceCommandAction? {
+        guard model.canRefresh else { return nil }
+        return WorkspaceCommandAction("Refresh Local Folder") { model.refreshCurrentDirectory() }
     }
 
     private var provenance: some View {

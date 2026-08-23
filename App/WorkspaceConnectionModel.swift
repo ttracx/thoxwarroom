@@ -136,6 +136,10 @@ final class WorkspaceConnectionModel: ObservableObject {
         }
     }
 
+    var canRefresh: Bool {
+        operation == nil && state != .loading
+    }
+
     private func stateForError(_ error: Error) -> State {
         if error as? WorkspaceConnectionServiceError == .providerOffline {
             return .offline(nonSensitiveMessage(for: error))

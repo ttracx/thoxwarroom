@@ -20,6 +20,13 @@ struct WorkspaceConnectionHost: View {
             WorkspaceConnectionView(model: model)
                 .toolbar { closeButton }
         }
+        .workspaceReturnCommand(WorkspaceCommandAction("Return to Workspace", perform: onClose))
+        .workspaceRefreshCommand(connectionRefreshCommand)
+    }
+
+    private var connectionRefreshCommand: WorkspaceCommandAction? {
+        guard model.canRefresh else { return nil }
+        return WorkspaceCommandAction("Refresh Provider Connection") { model.connect() }
     }
 
     @ToolbarContentBuilder
@@ -81,6 +88,13 @@ struct HermesRunReviewHost: View {
         } message: {
             Text("This deletes the workspace credential from this device's Keychain. It does not contact Hermes or delete server-side data.")
         }
+        .workspaceReturnCommand(WorkspaceCommandAction("Return to Workspace", perform: onClose))
+        .workspaceRefreshCommand(hermesRefreshCommand)
+    }
+
+    private var hermesRefreshCommand: WorkspaceCommandAction? {
+        guard accessModel.phase == .ready, reviewModel.canRefresh else { return nil }
+        return WorkspaceCommandAction("Refresh Hermes Run") { reviewModel.startLoading() }
     }
 
     @ViewBuilder

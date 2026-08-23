@@ -47,6 +47,13 @@ struct HostedCompatibilityView: View {
         } message: {
             Text("Cookies, local storage, caches, and other website data saved by ThoxWarRoom will be removed from this device.")
         }
+        .workspaceReturnCommand(WorkspaceCommandAction("Return to Workspace", perform: onShowWorkspace))
+        .workspaceRefreshCommand(WorkspaceCommandAction("Reload Hosted Workspace") {
+            model.reload()
+        })
+        .workspaceOpenInBrowserCommand(WorkspaceCommandAction("Open Hosted Workspace in Browser") {
+            model.openCurrentURLExternally()
+        })
     }
 
     @ViewBuilder

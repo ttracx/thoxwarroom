@@ -9,12 +9,15 @@ final class WorkspaceConnectionModelTests: XCTestCase {
     func testPublicDiscoveryStopsBeforeProtectedCatalogWithoutCredential() async throws {
         let service = WorkspaceConnectionServiceStub(hasCredential: false)
         let model = WorkspaceConnectionModel(profile: try profile(), service: service)
+        XCTAssertTrue(model.canRefresh)
 
         model.connect()
         XCTAssertEqual(model.state, .loading)
+        XCTAssertFalse(model.canRefresh)
         await model.waitForCurrentOperation()
 
         XCTAssertEqual(model.state, .credentialRequired(provenance()))
+        XCTAssertTrue(model.canRefresh)
         let publicRequestCount = await service.publicRequestCount
         let protectedRequestCount = await service.protectedRequestCount
         XCTAssertEqual(publicRequestCount, 1)

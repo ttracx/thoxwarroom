@@ -74,6 +74,7 @@ struct WarRoomDashboardHost: View {
             Text("This deletes the workspace credential from this device's Keychain. It does not contact MeshStack or delete server-side data.")
         }
         .accessibilityIdentifier("war-room-dashboard-host")
+        .workspaceReturnCommand(WorkspaceCommandAction("Return to Workspace", perform: onClose))
     }
 
     @ViewBuilder
@@ -248,7 +249,15 @@ private struct LoadedWarRoomDashboard: View {
         ))
     }
 
-    var body: some View { WarRoomDashboardView(model: model) }
+    var body: some View {
+        WarRoomDashboardView(model: model)
+            .workspaceRefreshCommand(dashboardRefreshCommand)
+    }
+
+    private var dashboardRefreshCommand: WorkspaceCommandAction? {
+        guard model.state != .loading else { return nil }
+        return WorkspaceCommandAction("Refresh War Room Dashboard") { model.load() }
+    }
 }
 
 @MainActor

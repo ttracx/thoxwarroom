@@ -43,12 +43,7 @@ struct ThoxWarRoomApp: App {
         .windowToolbarStyle(.unifiedCompact)
         .commands {
             CommandGroup(replacing: .newItem) {} // single-window app; disable File→New
-            CommandGroup(after: .toolbar) {
-                Button("Reload") { webViewModel.reload() }
-                    .keyboardShortcut("r", modifiers: .command)
-                Button("Open in Browser") { webViewModel.openCurrentURLExternally() }
-                    .keyboardShortcut("b", modifiers: .command)
-            }
+            WorkspaceFeatureCommands()
         }
         #endif
     }

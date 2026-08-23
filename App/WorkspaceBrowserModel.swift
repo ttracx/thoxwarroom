@@ -86,6 +86,20 @@ final class WorkspaceBrowserModel: ObservableObject {
         phase = .directory(currentDirectory)
     }
 
+    var canRefresh: Bool {
+        switch phase {
+        case .directory, .preview, .failed:
+            return currentDirectory != nil
+        case .loading, .loadingPreview:
+            return false
+        }
+    }
+
+    func refreshCurrentDirectory() {
+        guard let currentDirectory else { return }
+        loadDirectory(relativePath: currentDirectory.relativePath)
+    }
+
     func recover() {
         if let currentDirectory {
             phase = .directory(currentDirectory)

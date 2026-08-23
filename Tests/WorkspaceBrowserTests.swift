@@ -23,6 +23,12 @@ final class WorkspaceBrowserModelTests: XCTestCase {
         XCTAssertEqual(model.phase, .directory(directory))
         let listedPaths = await service.listedPaths()
         XCTAssertEqual(listedPaths, [""])
+        XCTAssertTrue(model.canRefresh)
+
+        model.refreshCurrentDirectory()
+        await model.waitForCurrentOperation()
+        let refreshedPaths = await service.listedPaths()
+        XCTAssertEqual(refreshedPaths, ["", ""])
     }
 
     func testOpensDirectoryAndReturnsToParentUsingRelativePathsOnly() async {
@@ -189,6 +195,21 @@ final class WorkspaceBrowserModelTests: XCTestCase {
             endpoint: endpoint,
             provider: WorkspaceProviderKind.openWebUI.descriptor
         )
+    }
+}
+
+@MainActor
+final class WorkspaceCommandActionTests: XCTestCase {
+    func testCommandCarriesVisibleLabelAndInvokesOnlyExplicitAction() {
+        var invocationCount = 0
+        let command = WorkspaceCommandAction("Refresh Visible Surface") {
+            invocationCount += 1
+        }
+
+        XCTAssertEqual(command.title, "Refresh Visible Surface")
+        XCTAssertEqual(invocationCount, 0)
+        command.perform()
+        XCTAssertEqual(invocationCount, 1)
     }
 }
 

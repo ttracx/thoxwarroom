@@ -1,5 +1,15 @@
 # ThoxWarRoom
 
+<!-- THOX-BADGES:START -->
+[![Repository](https://img.shields.io/badge/repository-ttracx/thoxwarroom-0B1220)](https://github.com/ttracx/thoxwarroom)
+![THOX.ai LLC](https://img.shields.io/badge/owner-THOX.ai%20LLC-00A676)
+![Platform](https://img.shields.io/badge/platform-iOS%2017%2B%20|%20macOS%2014%2B-000000?logo=apple&logoColor=white)
+![Swift](https://img.shields.io/badge/Swift-5.10-F05138?logo=swift&logoColor=white)
+![SwiftUI](https://img.shields.io/badge/SwiftUI-native-0D96FF)
+![License](https://img.shields.io/badge/license-proprietary-0B1220)
+![Visibility](https://img.shields.io/badge/visibility-private-0B1220)
+<!-- THOX-BADGES:END -->
+
 > Local-first native SwiftUI foundation for private THOX workspaces. One codebase, two targets: macOS 14+ (universal) and iOS 17+ (iPhone). Built for THOX AI LLC.
 
 ThoxWarRoom now starts with native workspace onboarding. Users explicitly choose a local-device, private-network, or hosted boundary before any provider can be opened; hosted transfer requires separate consent. Endpoint/profile metadata is AES-256-GCM encrypted locally with workspace-scoped device-only Keychain keys; credentials remain separate in Keychain. The former Open WebUI shell remains compiled for migration compatibility but is not exposed while the hosted retention and App Store privacy contract are unverified.

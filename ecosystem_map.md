@@ -66,3 +66,49 @@ The current v4.2 app has a dependency-free Shared Core plus native SwiftUI works
 - Provider-specific DTOs terminate at adapters; domain models remain shared and testable.
 - All high-impact Hermes actions carry request, decision, actor, time, result, and correlation identifiers.
 - Platform features depend on shared use cases, not directly on transport clients.
+
+## Chat surface (WR-017 / WR-018)
+
+**Parent product.** ThoxWarRoom is one of three THOX chat surfaces. The other
+two are the ThoxMythos-9B Space (Next.js, the shipping product UI) and
+`thoxos-ios` (SwiftUI, LAN-only companion to ThoxDevice hardware). All three
+render the same conversational shapes; they must not look like three products.
+
+**Upstream dependencies.**
+
+| Dependency | What it supplies | Boundary |
+|---|---|---|
+| `docs/fixtures/current-service-contracts/chat-ux-golden.html` | The `blocks[]` wire contract and the F1–F6 interactions | Frozen by SHA-256; a fixture, never a runtime |
+| ThoxMythos-9B Space `web/app/globals.css` + `web/components/chat/*` | Visual language and message anatomy | Read-only reference; no code is copied |
+| `thoxos-ios` `Sources/ThoxDesign/ThoxTokens.swift` (generated) | Canonical token values | Currently mirrored by hand in `App/ThoxTheme.swift` — see the P2 item in `HANDOFF_NEXT_ITERATION.md` |
+| `WarRoomOpenWebUI` → `OpenWebUIProvider.nativeChatContract` | The evidence gate that keeps remote chat fail-closed | The surface reads it; it never bypasses it |
+| `WarRoomCore` → `WorkspaceProfile`, `NetworkBoundary` | Workspace identity and the declared data boundary | Displayed verbatim in the header and empty state |
+
+**Internal layering.** Presentation depends downward only:
+
+```
+WarRoomChatPreviewHost / …PreviewView       (SwiftUI, platform layout)
+  └─ WarRoomChatPreviewModel                (@MainActor state, engine selection)
+       ├─ ChatTransport                     (scripted | on-device | fail-closed provider)
+       └─ WarRoomChatStreamParser           (raw text → [ThoxBlock])
+  └─ ChatBlockView                          (dispatch, one arm per case)
+       └─ WarRoomChatRichRenderers          (rich bodies)
+            ├─ ThoxMarkdownDocument         ┐
+            ├─ ThoxSyntaxHighlighter        ├─ Foundation-only, no UI, unit-testable
+            └─ MermaidFlowchart             ┘
+```
+
+**Downstream consumers.** None yet inside the app. `ThoxBlock` is the seam a
+future qualified remote transport hydrates, and the seam a share extension or
+App Intent would render into.
+
+**Data boundaries.**
+
+- The presentation path performs no I/O. `scripts/verify_chat_ux_parity.py`
+  fails the build if it acquires a network API.
+- The only web view in the chat path renders documents composed on-device,
+  through a non-persistent data store, with every navigation cancelled except
+  the initial `about:blank` seed and `window.open` refused.
+- Remote chat stays disabled until the WR-004 authenticated capture is reviewed.
+  Until then the surface names the blocker and lists the missing evidence rather
+  than offering a Send button that drops the request.

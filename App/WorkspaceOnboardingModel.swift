@@ -54,8 +54,11 @@ final class WorkspaceOnboardingModel: ObservableObject {
         validationMessage = nil
     }
 
-    func save() async {
+    func save(draft submittedDraft: WorkspaceDraft? = nil) async {
         guard phase == .editing else { return }
+        if let submittedDraft {
+            draft = submittedDraft
+        }
         validationMessage = nil
         phase = .saving
         do {

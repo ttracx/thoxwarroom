@@ -7,9 +7,7 @@ struct WorkspaceOnboardingView: View {
     let onOpenHostedCompatibility: (WorkspaceProfile) -> Void
     let onOpenWorkspaceBrowser: (WorkspaceProfile) -> Void
     let onOpenAuditCenter: (WorkspaceProfile) -> Void
-    @FocusState private var focusedField: Field?
-
-    private enum Field { case name, endpoint }
+    let onOpenChatPreview: (WorkspaceProfile) -> Void
 
     var body: some View {
         NavigationStack {
@@ -48,7 +46,7 @@ struct WorkspaceOnboardingView: View {
             }
             .accessibilityIdentifier("workspace-empty")
         case .editing:
-            configurationForm
+            WorkspaceConfigurationForm(model: model)
         case .saving:
             stateCard(
                 icon: "lock.shield",
@@ -74,6 +72,9 @@ struct WorkspaceOnboardingView: View {
                 onOpenAuditCenter: {
                     onOpenAuditCenter(configuration)
                 },
+                onOpenChatPreview: {
+                    onOpenChatPreview(configuration)
+                },
                 onRemove: { Task { await model.reset() } }
             )
         case .failed(let message):
@@ -89,6 +90,19 @@ struct WorkspaceOnboardingView: View {
             .accessibilityIdentifier("workspace-error")
         }
     }
+}
+
+private struct WorkspaceConfigurationForm: View {
+    @ObservedObject var model: WorkspaceOnboardingModel
+    @State private var draft: WorkspaceDraft
+    @FocusState private var focusedField: Field?
+
+    private enum Field { case name, endpoint }
+
+    init(model: WorkspaceOnboardingModel) {
+        self.model = model
+        _draft = State(initialValue: model.draft)
+    }
 
     private var configurationForm: some View {
         ScrollView {
@@ -102,18 +116,18 @@ struct WorkspaceOnboardingView: View {
                 boundaryPicker
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Provider").font(.headline)
-                    Picker("Provider", selection: $model.draft.providerKind) {
+                    Picker("Provider", selection: $draft.providerKind) {
                         ForEach(WorkspaceProviderKind.allCases, id: \.rawValue) { provider in
                             Text(provider.title).tag(provider)
                         }
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("workspace-provider")
-                    Text(model.draft.providerKind.detail)
+                    Text(draft.providerKind.detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text("Workspace name").font(.headline)
-                    TextField("Research workstation", text: $model.draft.name)
+                    TextField("Research workstation", text: $draft.name)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .name)
                         .accessibilityIdentifier("workspace-name")
@@ -121,8 +135,8 @@ struct WorkspaceOnboardingView: View {
                     endpointField
                     Text(endpointHelp).font(.caption).foregroundStyle(.secondary)
                 }
-                if model.draft.boundary == .hosted {
-                    Toggle(isOn: $model.draft.hasHostedDataTransferConsent) {
+                if draft.boundary == .hosted {
+                    Toggle(isOn: $draft.hasHostedDataTransferConsent) {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Allow data transfer to this hosted service").font(.headline)
                             Text("Prompts, retrieved context, and model output may leave this device. This consent applies only to this workspace.")
@@ -147,7 +161,7 @@ struct WorkspaceOnboardingView: View {
                     Spacer()
                     Button("Save workspace") {
                         focusedField = nil
-                        Task { await model.save() }
+                        Task { await model.save(draft: draft) }
                     }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
@@ -162,15 +176,19 @@ struct WorkspaceOnboardingView: View {
         .accessibilityIdentifier("workspace-form")
     }
 
+    var body: some View {
+        configurationForm
+    }
+
     private var boundaryPicker: some View {
         VStack(spacing: 10) {
             ForEach(NetworkBoundary.allCases, id: \.rawValue) { boundary in
-                Button { model.selectBoundary(boundary) } label: {
+                Button { selectBoundary(boundary) } label: {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: boundary.systemImage)
                             .font(.title3)
                             .frame(width: 28)
-                            .foregroundStyle(boundary == model.draft.boundary ? ThoxTheme.accent : .secondary)
+                            .foregroundStyle(boundary == draft.boundary ? ThoxTheme.accent : .secondary)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(boundary.title).font(.headline)
                             Text(boundary.privacySummary)
@@ -179,23 +197,23 @@ struct WorkspaceOnboardingView: View {
                                 .multilineTextAlignment(.leading)
                         }
                         Spacer()
-                        Image(systemName: boundary == model.draft.boundary ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(boundary == model.draft.boundary ? ThoxTheme.accent : .secondary)
+                        Image(systemName: boundary == draft.boundary ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(boundary == draft.boundary ? ThoxTheme.accent : .secondary)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .padding(12)
                 .background(
-                    boundary == model.draft.boundary ? ThoxTheme.accent.opacity(0.12) : Color.clear,
+                    boundary == draft.boundary ? ThoxTheme.accent.opacity(0.12) : Color.clear,
                     in: RoundedRectangle(cornerRadius: 12)
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(boundary == model.draft.boundary ? ThoxTheme.accent : ThoxTheme.separator)
+                        .stroke(boundary == draft.boundary ? ThoxTheme.accent : ThoxTheme.separator)
                 }
                 .accessibilityLabel("\(boundary.title). \(boundary.privacySummary)")
-                .accessibilityValue(boundary == model.draft.boundary ? "Selected" : "Not selected")
+                .accessibilityValue(boundary == draft.boundary ? "Selected" : "Not selected")
                 .accessibilityIdentifier("boundary-\(boundary.rawValue)")
             }
         }
@@ -204,7 +222,7 @@ struct WorkspaceOnboardingView: View {
     @ViewBuilder
     private var endpointField: some View {
         #if os(iOS)
-        TextField("http://127.0.0.1", text: $model.draft.endpoint)
+        TextField("http://127.0.0.1", text: $draft.endpoint)
             .textFieldStyle(.roundedBorder)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -212,7 +230,7 @@ struct WorkspaceOnboardingView: View {
             .focused($focusedField, equals: .endpoint)
             .accessibilityIdentifier("workspace-endpoint")
         #else
-        TextField("http://127.0.0.1", text: $model.draft.endpoint)
+        TextField("http://127.0.0.1", text: $draft.endpoint)
             .textFieldStyle(.roundedBorder)
             .focused($focusedField, equals: .endpoint)
             .accessibilityIdentifier("workspace-endpoint")
@@ -220,12 +238,22 @@ struct WorkspaceOnboardingView: View {
     }
 
     private var endpointHelp: String {
-        switch model.draft.boundary {
+        switch draft.boundary {
         case .localMachine: "Use localhost or a loopback address. HTTP is allowed because traffic never leaves this device."
         case .privateNetwork: "Use the exact HTTPS address supplied by your organization. Unencrypted private-network HTTP is disabled."
         case .hosted: "Hosted endpoints must use HTTPS and require explicit consent below."
         }
     }
+
+    private func selectBoundary(_ boundary: NetworkBoundary) {
+        draft.boundary = boundary
+        if boundary != .hosted {
+            draft.hasHostedDataTransferConsent = false
+        }
+    }
+}
+
+private extension WorkspaceOnboardingView {
 
     private func stateCard<Actions: View>(
         icon: String,
@@ -258,6 +286,7 @@ private struct WorkspaceReadyView: View {
     let onOpenHostedCompatibility: () -> Void
     let onOpenWorkspaceBrowser: () -> Void
     let onOpenAuditCenter: () -> Void
+    let onOpenChatPreview: () -> Void
     let onRemove: () -> Void
     @State private var isRemovalPresented = false
 
@@ -323,6 +352,12 @@ private struct WorkspaceReadyView: View {
 
     @ViewBuilder
     private var workspaceActions: some View {
+        Button("Open chat preview") {
+            onOpenChatPreview()
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityHint("Opens the block-based chat surface preview. Live chat remains fail-closed until authenticated evidence lands.")
+        .accessibilityIdentifier("open-chat-preview")
         if let nativeRoute = WorkspaceNativeFeatureRoute(profile: configuration) {
             Button(nativeRoute.buttonTitle) {
                 onOpenNativeFeature()

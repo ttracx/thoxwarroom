@@ -77,6 +77,19 @@ final class EncryptedWorkspaceFileDataStoreTests: XCTestCase {
         XCTAssertNotEqual(records[0].nonce, records[1].nonce)
     }
 
+    func testMissingWorkspaceRecordLookupReturnsNil() async throws {
+        let store = try EncryptedWorkspaceFileDataStore(
+            rootURL: temporaryRoot,
+            fileSystem: SystemAtomicWorkspaceFileSystem()
+        )
+        let workspaceID = workspaceID("AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
+        let recordID = recordID("CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC")
+
+        let record = try await store.record(id: recordID, in: workspaceID)
+
+        XCTAssertNil(record)
+    }
+
     func testInjectedAtomicWriteFailurePreservesPreviousRecord() async throws {
         let fileSystem = FailAfterFirstWriteFileSystem()
         let store = try EncryptedWorkspaceFileDataStore(rootURL: temporaryRoot, fileSystem: fileSystem)

@@ -9,6 +9,7 @@ struct ContentView: View {
         case warRoomDashboard(WorkspaceProfile)
         case workspaceBrowser(WorkspaceProfile)
         case auditCenter(WorkspaceProfile)
+        case chatPreview(WorkspaceProfile)
     }
 
     #if os(macOS)
@@ -18,6 +19,7 @@ struct ContentView: View {
         case workspaceBrowser
         case auditCenter
         case hostedCompatibility
+        case chatPreview
     }
     #endif
 
@@ -55,6 +57,11 @@ struct ContentView: View {
                     .tag(MacDestination.workspace)
                     .accessibilityIdentifier("mac-sidebar-workspace")
                 if let profile = configuredProfile {
+                    Section("Chat surface") {
+                        Label("Chat preview", systemImage: "bubble.left.and.text.bubble.right")
+                            .tag(MacDestination.chatPreview)
+                            .accessibilityIdentifier("mac-sidebar-chat-preview")
+                    }
                     Section("Read-only tools") {
                         if let route = WorkspaceNativeFeatureRoute(profile: profile) {
                             Label(sidebarTitle(for: route), systemImage: sidebarIcon(for: route))
@@ -87,7 +94,12 @@ struct ContentView: View {
             macOSDetail
         }
         .navigationSplitViewStyle(.balanced)
-        .onChange(of: onboardingModel.phase) { _, _ in reconcileMacDestination() }
+        .onChange(of: onboardingModel.phase) { _, _ in
+            Task { @MainActor in
+                await Task.yield()
+                reconcileMacDestination()
+            }
+        }
     }
 
     @ViewBuilder
@@ -98,7 +110,8 @@ struct ContentView: View {
                 onOpenNativeFeature: { _ in macDestination = .nativeFeature },
                 onOpenHostedCompatibility: { _ in macDestination = .hostedCompatibility },
                 onOpenWorkspaceBrowser: { _ in macDestination = .workspaceBrowser },
-                onOpenAuditCenter: { _ in macDestination = .auditCenter }
+                onOpenAuditCenter: { _ in macDestination = .auditCenter },
+                onOpenChatPreview: { _ in macDestination = .chatPreview }
             )
         case .nativeFeature:
             if let profile = configuredProfile {
@@ -121,6 +134,12 @@ struct ContentView: View {
         case .hostedCompatibility:
             if configuredProfile?.supportsHostedCompatibilityOrigin == true {
                 HostedCompatibilityView(model: webViewModel) { macDestination = .workspace }
+            } else {
+                unavailableMacDestination
+            }
+        case .chatPreview:
+            if let profile = configuredProfile {
+                WarRoomChatPreviewHost(profile: profile) { macDestination = .workspace }
             } else {
                 unavailableMacDestination
             }
@@ -149,20 +168,30 @@ struct ContentView: View {
 
     private func reconcileMacDestination() {
         guard let profile = configuredProfile else {
-            macDestination = .workspace
+            if macDestination != .workspace {
+                macDestination = .workspace
+            }
             return
         }
         switch macDestination {
         case .workspace:
             break
         case .nativeFeature:
-            if WorkspaceNativeFeatureRoute(profile: profile) == nil { macDestination = .workspace }
+            if WorkspaceNativeFeatureRoute(profile: profile) == nil {
+                macDestination = .workspace
+            }
         case .workspaceBrowser:
-            if !profile.supportsLocalWorkspaceBrowser { macDestination = .workspace }
+            if !profile.supportsLocalWorkspaceBrowser {
+                macDestination = .workspace
+            }
         case .auditCenter:
             break
         case .hostedCompatibility:
-            if !profile.supportsHostedCompatibilityOrigin { macDestination = .workspace }
+            if !profile.supportsHostedCompatibilityOrigin {
+                macDestination = .workspace
+            }
+        case .chatPreview:
+            break
         }
     }
 
@@ -198,6 +227,8 @@ struct ContentView: View {
             WorkspaceBrowserHost(profile: profile) { destination = nil }
         case .auditCenter(let profile):
             WorkspaceAuditCenterHost(profile: profile) { destination = nil }
+        case .chatPreview(let profile):
+            WarRoomChatPreviewHost(profile: profile) { destination = nil }
         case nil:
             workspaceOverview(
                 onOpenNativeFeature: { profile in
@@ -205,7 +236,8 @@ struct ContentView: View {
                 },
                 onOpenHostedCompatibility: { _ in destination = .hostedCompatibility },
                 onOpenWorkspaceBrowser: { profile in destination = .workspaceBrowser(profile) },
-                onOpenAuditCenter: { profile in destination = .auditCenter(profile) }
+                onOpenAuditCenter: { profile in destination = .auditCenter(profile) },
+                onOpenChatPreview: { profile in destination = .chatPreview(profile) }
             )
         }
     }
@@ -214,14 +246,16 @@ struct ContentView: View {
         onOpenNativeFeature: @escaping (WorkspaceProfile) -> Void,
         onOpenHostedCompatibility: @escaping (WorkspaceProfile) -> Void,
         onOpenWorkspaceBrowser: @escaping (WorkspaceProfile) -> Void,
-        onOpenAuditCenter: @escaping (WorkspaceProfile) -> Void
+        onOpenAuditCenter: @escaping (WorkspaceProfile) -> Void,
+        onOpenChatPreview: @escaping (WorkspaceProfile) -> Void
     ) -> some View {
         WorkspaceOnboardingView(
             model: onboardingModel,
             onOpenNativeFeature: onOpenNativeFeature,
             onOpenHostedCompatibility: onOpenHostedCompatibility,
             onOpenWorkspaceBrowser: onOpenWorkspaceBrowser,
-            onOpenAuditCenter: onOpenAuditCenter
+            onOpenAuditCenter: onOpenAuditCenter,
+            onOpenChatPreview: onOpenChatPreview
         )
     }
 

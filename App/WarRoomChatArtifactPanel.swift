@@ -96,7 +96,7 @@ struct ArtifactPanel: View {
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(Color(red: 13.0 / 255, green: 17.0 / 255, blue: 23.0 / 255))
+            .background(ThoxTheme.codeBackground)
             .accessibilityIdentifier("chat-artifact-code")
         }
     }

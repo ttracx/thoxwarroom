@@ -28,6 +28,12 @@ enum ThoxBlock: Equatable, Hashable {
     /// A finished, language-tagged code block.
     case code(language: String, source: String)
 
+    /// A code fence that has been opened by the stream but not yet closed.
+    /// Rendered distinctly from `.code` (no copy affordance, explicit "receiving"
+    /// chrome) so a half-arrived block is never mistaken for a finished one the
+    /// user can act on.
+    case pendingCode(language: String, partial: String)
+
     /// A time-series chart with a title and paired labels/values.
     case chart(ChartSpec)
 
@@ -53,6 +59,7 @@ enum ThoxBlock: Equatable, Hashable {
         switch self {
         case .markdown: return "markdown"
         case .code: return "code"
+        case .pendingCode: return "pendingCode"
         case .chart: return "chart"
         case .mermaid: return "mermaid"
         case .artifact: return "artifact"

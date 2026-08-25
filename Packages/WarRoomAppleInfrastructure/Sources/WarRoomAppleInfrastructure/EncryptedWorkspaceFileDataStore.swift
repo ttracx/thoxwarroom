@@ -270,6 +270,8 @@ public actor EncryptedWorkspaceFileDataStore: EncryptedWorkspaceDataStore {
             return try fileSystem.directoryEntries(at: url)
         } catch let error as CocoaError where error.code == .fileNoSuchFile {
             return nil
+        } catch let error as NSError where Self.isMissingFileError(error) {
+            return nil
         } catch let error as EncryptedWorkspaceFileStoreError {
             throw error
         } catch {
@@ -321,6 +323,11 @@ public actor EncryptedWorkspaceFileDataStore: EncryptedWorkspaceDataStore {
         decoder.dateDecodingStrategy = .millisecondsSince1970
         return decoder
     }
+
+    private static func isMissingFileError(_ error: NSError) -> Bool {
+        (error.domain == NSCocoaErrorDomain && error.code == NSFileNoSuchFileError) ||
+            (error.domain == NSPOSIXErrorDomain && error.code == Int(ENOENT))
+    }
 }
 
 struct SystemAtomicWorkspaceFileSystem: AtomicWorkspaceFileSystem, @unchecked Sendable {
@@ -349,7 +356,15 @@ struct SystemAtomicWorkspaceFileSystem: AtomicWorkspaceFileSystem, @unchecked Se
 
     func directoryEntries(at url: URL) throws -> [URL] {
         let standardized = url.standardizedFileURL
-        guard standardized.resolvingSymlinksInPath() == standardized else {
+        let path = standardized.path
+        var metadata = stat()
+        guard Darwin.lstat(path, &metadata) == 0 else {
+            if errno == ENOENT {
+                throw NSError(domain: NSPOSIXErrorDomain, code: Int(ENOENT))
+            }
+            throw EncryptedWorkspaceFileStoreError.inputOutputFailure
+        }
+        guard (metadata.st_mode & S_IFMT) != S_IFLNK else {
             throw EncryptedWorkspaceFileStoreError.symbolicLinkEncountered
         }
         return try fileManager.contentsOfDirectory(

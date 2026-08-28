@@ -147,16 +147,16 @@ final class WarRoomChatPreviewModel: ObservableObject {
                 switch event {
                 case .delta(let chunk):
                     accumulated.append(chunk)
-                    await self.apply(streamedText: accumulated)
+                    self.apply(streamedText: accumulated)
                 case .completed:
-                    await self.completeStream(finalText: accumulated)
+                    self.completeStream(finalText: accumulated)
                     return
                 case .failed(let reason):
-                    await self.failStream(reason: reason)
+                    self.failStream(reason: reason)
                     return
                 }
             }
-            await self.completeStream(finalText: accumulated)
+            self.completeStream(finalText: accumulated)
         }
     }
 

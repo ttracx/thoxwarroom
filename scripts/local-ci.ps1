@@ -17,7 +17,7 @@ if (-not (Test-Path -LiteralPath $gitBash)) {
     $gitBash = (Get-Command bash -ErrorAction Stop).Source
 }
 
-& $gitBash -lc 'bash scripts/ci_unsigned.sh'
+ssh -o BatchMode=yes -o ConnectTimeout=5 knightdev@100.64.44.121 'cd /Users/knightdev/Projects/thoxwarroom-local-ci-20260830 && git pull --ff-only && bash scripts/ci_unsigned.sh'
 if ($LASTEXITCODE -ne 0) {
     throw "scripts/ci_unsigned.sh failed with exit code $LASTEXITCODE"
 }

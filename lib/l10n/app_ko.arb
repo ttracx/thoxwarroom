@@ -396,9 +396,17 @@
       }
     }
   },
-  "themeDark": "다크",
-  "themePalette": "강조 색상 팔레트",
-  "themePaletteThoxWarRoomLabel": "ThoxWarRoom",
+    "themeDark": "다크",
+    "themePalette": "강조 색상 팔레트",
+    "themePaletteThoxOsLabel": "ThoxOS",
+    "@themePaletteThoxOsLabel": {
+      "description": "Palette name for the ThoxOS design system theme."
+    },
+    "themePaletteThoxOsDescription": "다크 우선 에메랄드 강조 — THOX.ai 디자인 시스템. 트루 블랙 표면, 에메랄드-500 포커스, 헤어라인 보더.",
+    "@themePaletteThoxOsDescription": {
+      "description": "Description of the ThoxOS design system palette."
+    },
+    "themePaletteThoxWarRoomLabel": "ThoxWarRoom",
   "themePaletteThoxWarRoomDescription": "ThoxWarRoom을 위해 설계된 깔끔한 중립 테마.",
   "themePaletteClaudeLabel": "Claude",
   "themePaletteClaudeDescription": "Claude 웹 클라이언트에서 가져온 따뜻하고 촉각적인 팔레트.",

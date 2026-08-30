@@ -19,6 +19,13 @@
 #   VALIDATE_CREDENTIALS_ONLY  Validate the ASC key locally, then exit
 set -euo pipefail
 
+# exportArchive shells out to rsync. Homebrew's rsync (3.x, protocol 32) breaks
+# the copy step and xcodebuild reports only "error: exportArchive Copy failed" —
+# which reads like a signing problem but is a PATH problem. Put the system
+# paths first so the export uses /usr/bin/openrsync (same fix as MeshStack's
+# Makefile EXPORT_PATH).
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin:${PATH}"
+
 cd "$(dirname "$0")/.."
 
 BUILD_DIR=${BUILD_DIR:-build/ios}
